@@ -67,8 +67,27 @@ set sld.contract_no = c.contract_no ;
 
 
 
-
-
+-- 6)
+SELECT c.contract_no , sld.new_lastpayment_date,
+	count( case when c.status = 4 and t.date_collected is not null then 1 end) 'paid_times', 
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 then 1 end ) + count( case when t.date_collected is null then 1 end) as'S_at_5th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end ) as 'A_at_10th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st',
+	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month'
+from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
+left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
+left join (
+	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
+		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
+    FROM tblpayment pm
+    LEFT JOIN tblcollection co ON pm.collection_id = co.id
+    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
+	) t on (c.id = t.contract_id)
+WHERE t.rn = 1
+	and c.contract_no = 2005042
+group by contract_no ;
 
 
 
