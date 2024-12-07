@@ -67,6 +67,7 @@ set sld.contract_no = c.contract_no ;
 
 
 -- 6) data details for checking
+-- data details
 SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
 	ps1.payment_date, t.due_date, t.date_collected 
 from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
@@ -81,7 +82,7 @@ left join (
     inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
 	) t on (c.id = t.contract_id)
 WHERE t.rn = 1
-	and c.contract_no in (2005042, 2071993, 2063362, 2106548, 2090776, 2095274, 2102365, 2106278, 2106913, 2107228, 2109397, 2109714)
+	and c.status in (4,6,7)
 ;
 
 
@@ -124,10 +125,8 @@ left join (
     inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
 	) t on (c.id = t.contract_id)
 WHERE t.rn = 1
-	and c.contract_no in (2005042, 2071993, 2063362, 2106548, 2090776, 2095274, 2102365, 2106278, 2106913, 2107228, 2109397, 2109714)
-	-- and c.contract_no in (2109714) -- new 
+	and c.status in (4,6,7)
 group by contract_no ;
-
 
 
 
