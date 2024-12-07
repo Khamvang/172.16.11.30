@@ -66,16 +66,11 @@ update sme_lock_down sld inner join tblcontract c on (sld.ncn = c.ncn)
 set sld.contract_no = c.contract_no ;
 
 
-
--- 6)
-SELECT c.contract_no , sld.new_lastpayment_date,
-	count( case when c.status = 4 and t.date_collected is not null then 1 end) 'paid_times', 
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 then 1 end ) + count( case when t.date_collected is null then 1 end) as'S_at_5th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end ) as 'A_at_10th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st',
-	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month'
+-- 6) data details for checking
+SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
+	ps1.payment_date, t.due_date, t.date_collected 
 from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
+left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
 left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
 left join (
 	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
@@ -86,9 +81,52 @@ left join (
     inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
 	) t on (c.id = t.contract_id)
 WHERE t.rn = 1
-	and c.contract_no = 2005042
-group by contract_no ;
+	and c.contract_no in (2005042, 2071993, 2063362, 2106548, 2090776, 2095274, 2102365, 2106278, 2106913, 2107228, 2109397, 2109714)
+;
 
+
+
+-- 7) Calculation
+SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
+	-- all in contract
+	case when ps1.payment_date >= t.due_date then count(*) end 'paid_times', 
+	COUNT( CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		   END
+	) AS 'S_at_5th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end ) as 'A_at_10th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th',
+	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st',
+	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month',
+	-- last contract
+	case 
+		when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
+	end 'paid_times_of_last_contract',
+	COUNT( 
+		CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		END
+	) AS 'S_at_5th_of_last_contract',
+	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end 
+	) as 'A_at_10th_of_last_contract',
+	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th_of_last_contract',
+	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st_of_last_contract',
+	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month_of_last_contract'
+from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
+left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
+left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
+left join (
+	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
+		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
+    FROM tblpayment pm
+    LEFT JOIN tblcollection co ON pm.collection_id = co.id
+    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
+	) t on (c.id = t.contract_id)
+WHERE t.rn = 1
+	and c.contract_no in (2005042, 2071993, 2063362, 2106548, 2090776, 2095274, 2102365, 2106278, 2106913, 2107228, 2109397, 2109714)
+	-- and c.contract_no in (2109714) -- new 
+group by contract_no ;
 
 
 
