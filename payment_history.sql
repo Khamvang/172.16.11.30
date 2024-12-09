@@ -67,7 +67,6 @@ set sld.contract_no = c.contract_no ;
 
 
 -- 6) data details for checking
--- data details
 SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
 	ps1.payment_date, t.due_date, t.date_collected 
 from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
