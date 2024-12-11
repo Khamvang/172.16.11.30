@@ -125,7 +125,7 @@ WHERE t.rn = 1
 group by contract_no ;
 
 
--- export
+-- 8) DDT Delay 
 SELECT c.contract_no , 
 CASE p.contract_type 
         WHEN 1 THEN 'SME Car'
