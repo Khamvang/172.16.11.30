@@ -124,8 +124,7 @@ WHERE t.rn = 1
 	and c.status in (4,6,7)
 group by contract_no ;
 
-
--- 8) DDT Delay 
+-- 8.DDT All : https://docs.google.com/spreadsheets/d/12-L-kqOfd80RHTFrI_9mNF8rZJ5DRMIGvu4WU0Y5mx4/edit?gid=1260398977#gid=1260398977
 SELECT c.contract_no , 
 CASE p.contract_type 
         WHEN 1 THEN 'SME Car'
@@ -145,7 +144,7 @@ cu.main_contact_no,
         ELSE '' 
     END AS payment_schedule_type,
 p.loan_amount, p.trading_currency, 
-null as 'due_for_next_installment' , null as 'totoal_principal_outstanding' , null as 'totoal_principal_outstanding_usd' ,
+null as 'due_for_next_installment' , null as 'total_principal_outstanding' , null as 'total_principal_outstanding_usd' ,
 null as 'sale_person',
 CASE c.status 
         WHEN 0 THEN 'Pending' 
@@ -164,6 +163,46 @@ p.last_payment_date,
 ps2.principal_amount as 'last_installment_principal',
 p.no_of_payment, 
 case When p.payment_schedule_type = 1 then 'Normal' when p.loan_amount = ps2.principal_amount then 'DDT' else 'DDT+Installment' end 'ddt_installment', 
+case when sld.start_date is null
+	then
+		case when ps1.payment_date >= t.due_date then count(*) end
+	else
+		case 
+			when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
+		end
+end 'paid_times1',
+case when sld.start_date is null 
+	then COUNT(
+		CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		   END)
+	else
+	COUNT( 
+		CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		END
+	)
+end 'S_at_5th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end )
+end 'A_at_10th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end )
+end 'B_at_20th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end )
+end 'C_at_31st1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end )
+end 'F_after_1_month1'
 -- sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
 	-- all in contract
 	/*case when ps1.payment_date >= t.due_date then count(*) end 'paid_times', 
@@ -174,7 +213,7 @@ case When p.payment_schedule_type = 1 then 'Normal' when p.loan_amount = ps2.pri
 	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end ) as 'A_at_10th',
 	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th',
 	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st',
-	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month',*/
+	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month',
 	-- last contract
 	case 
 		when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
@@ -188,7 +227,7 @@ case When p.payment_schedule_type = 1 then 'Normal' when p.loan_amount = ps2.pri
 	) as 'A_at_10th_of_last_contract',
 	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th_of_last_contract',
 	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st_of_last_contract',
-	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month_of_last_contract'
+	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month_of_last_contract'*/
 from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
 left join tblcustomer cu on (p.customer_id = cu.id)
 left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
@@ -205,3 +244,91 @@ left join (
 WHERE t.rn = 1
 	and c.status in (4,6,7)
 group by contract_no;
+
+
+
+-- ----- for calculate sheet
+SELECT c.contract_no , c.id,
+p.first_payment_date, 
+sld.start_date as 'first_payment_date_of_last_3moths',
+p.last_payment_date,
+CASE c.status 
+        WHEN 0 THEN 'Pending' 
+        WHEN 1 THEN 'Pending Approval'
+        WHEN 2 THEN 'Pending Disbursement' 
+        WHEN 3 THEN 'Disbursement Approval'
+        WHEN 4 THEN 'Active' 
+        WHEN 5 THEN 'Cancelled'
+        WHEN 6 THEN 'Refinance' 
+        WHEN 7 THEN 'Closed' 
+        ELSE NULL
+    END AS contract_status,
+case when sld.start_date is null
+	then
+		case when ps1.payment_date >= t.due_date then count(*) end
+	else
+		case 
+			when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
+		end
+end 'paid_times1',
+case when sld.start_date is null 
+	then COUNT(
+		CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		   END)
+	else
+	COUNT( 
+		CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		END
+	)
+end 'S_at_5th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end )
+end 'A_at_10th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end )
+end 'B_at_20th1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end )
+end 'C_at_31st1',
+case when sld.start_date is null 
+		then count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end )
+		else
+		count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end )
+end 'F_after_1_month1'
+from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
+left join tblcustomer cu on (p.customer_id = cu.id)
+left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
+left join tblpaymentschedule ps2 on ps2.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id order by payment_date desc limit 1 )
+left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
+left join (
+	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
+		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
+    FROM tblpayment pm
+    LEFT JOIN tblcollection co ON pm.collection_id = co.id
+    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
+	) t on (c.id = t.contract_id)
+WHERE t.rn = 1
+	and c.status in (4,6,7)
+group by contract_no;
+
+case when sld.start_date is null 
+	COUNT(
+		CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		   END)
+	else
+	COUNT( 
+		CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+		END
+	)
+end 'F_after_1_month1'
