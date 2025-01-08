@@ -83,6 +83,12 @@ WHERE t.rn = 1
 
 
 
+--  Disable ONLY_FULL_GROUP_BY (Not Recommended)
+/* You can temporarily disable ONLY_FULL_GROUP_BY by updating the SQL mode, but this is not recommended for production as it can lead to unpredictable query results. */
+
+SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''));
+
+
 -- 7) Calculation
 SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
 	-- all in contract
