@@ -134,6 +134,7 @@ group by contract_no ;
 -- 8) Query for generating the DDT sheet report
 -- URL: https://docs.google.com/spreadsheets/d/12-L-kqOfd80RHTFrI_9mNF8rZJ5DRMIGvu4WU0Y5mx4/edit?gid=1260398977#gid=1260398977
 
+/* -- Old query, don't use it, please check the new query
 SELECT c.contract_no , 
 	CASE p.contract_type 
 	        WHEN 1 THEN 'SME Car'
@@ -237,7 +238,7 @@ left join (
 WHERE t.rn = 1
 	and c.status in (4,6,7)
 group by contract_no;
-
+*/
 
 
 
