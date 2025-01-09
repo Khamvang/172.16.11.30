@@ -131,7 +131,7 @@ WHERE t.rn = 1
 group by contract_no ;
 
 
--- 8) DDT Delay 
+-- 8) DDT sheet on URL https://docs.google.com/spreadsheets/d/12-L-kqOfd80RHTFrI_9mNF8rZJ5DRMIGvu4WU0Y5mx4/edit?gid=1260398977#gid=1260398977
 SELECT c.contract_no , 
 CASE p.contract_type 
         WHEN 1 THEN 'SME Car'
