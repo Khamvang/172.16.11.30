@@ -113,6 +113,45 @@ CREATE TABLE `sme_org` (
 
 
 
+-- 5. Create table Employees
+CREATE TABLE `tabsme_Employees` (
+	`name` varchar(140) NOT NULL,
+	`creation` datetime(6) DEFAULT NULL,
+	`modified` datetime(6) DEFAULT NULL,
+	`modified_by` varchar(140) DEFAULT NULL,
+	`owner` varchar(140) DEFAULT NULL,
+	`docstatus` int(1) NOT NULL DEFAULT 0,
+	`idx` int(8) NOT NULL DEFAULT 0,
+	`staff_no` varchar(140) DEFAULT NULL,
+	`staff_name` varchar(140) DEFAULT NULL,
+	`gender` varchar(140) DEFAULT NULL,
+	`first_name_lo` varchar(140) DEFAULT NULL,
+	`last_name_lo` varchar(140) DEFAULT NULL,
+	`first_name_en` varchar(140) DEFAULT NULL,
+	`last_name_en` varchar(140) DEFAULT NULL,
+	`branch` varchar(140) DEFAULT NULL,
+	`department` varchar(140) DEFAULT NULL,
+	`job_title` varchar(140) DEFAULT NULL,
+	`_user_tags` text DEFAULT NULL,
+	`_comments` text DEFAULT NULL,
+	`_assign` text DEFAULT NULL,
+	`_liked_by` text DEFAULT NULL,
+	`parent` varchar(140) DEFAULT NULL,
+	`parenttype` varchar(140) DEFAULT NULL,
+	`parentfield` varchar(140) DEFAULT NULL,
+	`staff_status` varchar(255) DEFAULT NULL,
+	`main_contact` varchar(140) DEFAULT NULL,
+	`assignee` varchar(140) DEFAULT NULL,
+	`date_resigned` date DEFAULT NULL,
+	`email` varchar(140) DEFAULT NULL,
+	PRIMARY KEY (`name`),
+	KEY `modified` (`modified`),
+	KEY `idx_staff_no` (`staff_no`),
+	KEY `idx_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+
+
 show index from sme_project_list;
 CREATE INDEX idx_contract_no ON sme_project_list (contract_no);
 CREATE INDEX idx_target_month ON sme_project_list (target_month);
