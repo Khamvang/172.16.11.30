@@ -301,11 +301,11 @@ target_month|spc_already_paid|
 -- Which contract number that is dff target
 SELECT * 
 FROM sme_projectlist_target spt 
-WHERE spt.target_month = '2024-12-05' 
+WHERE spt.target_month = '2025-01-05' 
 	AND spt.contract_no NOT IN ( 
 		SELECT contract_no 
 		FROM sme_project_list 
-		WHERE target_month = '2024-12-05' AND date_created >= '2025-01-16 10:00' )
+		WHERE target_month = '2025-01-05' AND date_created >= '2025-01-20 08:00' )
 ;
 -- 
 id  |contract_no|target_month|now_amount_usd|date_created       |date_updated       |
