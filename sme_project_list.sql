@@ -245,16 +245,16 @@ WHERE (spl.payment_status in ('already paid') or spl.seized_car  = 'Got car')
 -- 3. Check the issue 
 -- 3.1 Main check
 SELECT spl.target_month, COUNT(*) AS spl_target, 
-	SUM(CASE WHEN spl.payment_status = 'already paid' THEN 1 ELSE 0 END) AS spl_already_paid,
+	SUM(CASE WHEN spl.payment_status = 'already paid' OR seized_car = 'Got car' THEN 1 ELSE 0 END) AS spl_already_paid,
 	spt.spt_target , spc.spc_already_paid,
 	COUNT(*) - spt.spt_target AS target_dff,
-	SUM(CASE WHEN spl.payment_status = 'already paid' THEN 1 ELSE 0 END) - spc.spc_already_paid AS already_paid_dff
+	SUM(CASE WHEN spl.payment_status = 'already paid' OR seized_car = 'Got car' THEN 1 ELSE 0 END) - spc.spc_already_paid AS already_paid_dff
 FROM sme_project_list spl
 LEFT JOIN (SELECT target_month, COUNT(*) AS spt_target FROM sme_projectlist_target GROUP BY target_month
 	) AS spt ON (spl.target_month = spt.target_month)
 LEFT JOIN (SELECT target_month, COUNT(*) AS spc_already_paid FROM sme_projectlist_collected GROUP BY target_month
 	) AS spc ON (spl.target_month = spc.target_month)
-	WHERE spl.date_created >= '2025-01-15 19:00'
+	WHERE spl.date_created >= '2025-01-20 08:00'
 GROUP BY spl.target_month;
 -- 
 target_month|spl_target|spl_already_paid|spt_target|spc_already_paid|target_dff|already_paid_dff|
