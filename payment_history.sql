@@ -42,18 +42,20 @@ CREATE TABLE `sme_lock_down` (
 ) ENGINE=InnoDB AUTO_INCREMENT=31179 DEFAULT CHARSET=utf8mb3;
 
 
+-- Adjust table
 
--- 4) create index
-
-show index from sme_lock_down
-
+show index from sme_lock_down;
 create index idx_new_lastpayment_date on sme_lock_down(new_lastpayment_date);
-
 create index idx_contract_no on sme_lock_down(contract_no);
-
 create index idx_ncn on sme_lock_down(ncn);
-
 create index idx_status on sme_lock_down(status);
+
+alter table sme_lock_down add is_lockdown_file int(11) not null default 0 comment 'is exist in lockdown file';
+
+
+
+-- 4) import the lockdown file to databses
+
 
 
 
@@ -61,6 +63,8 @@ create index idx_status on sme_lock_down(status);
 
 update sme_lock_down sld inner join tblcontract c on (sld.ncn = c.ncn)
 set sld.contract_no = c.contract_no ;
+
+SELECT * FROM sme_lock_down;
 
 
 -- 6) data details for checking
@@ -380,7 +384,7 @@ LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
 )
 LEFT JOIN sme_lock_down sld ON sld.id = (
     SELECT id FROM sme_lock_down 
-    WHERE contract_no = c.contract_no AND status = 'ຜ່ານ' 
+    WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
     ORDER BY id DESC LIMIT 1
 )
 LEFT JOIN (
