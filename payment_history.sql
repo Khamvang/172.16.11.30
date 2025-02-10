@@ -385,7 +385,7 @@ LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
 LEFT JOIN sme_lock_down sld ON sld.id = (
     SELECT id FROM sme_lock_down 
     WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
-    ORDER BY id DESC LIMIT 1
+    ORDER BY new_lastpayment_date DESC, start_date DESC LIMIT 1
 )
 LEFT JOIN (
     SELECT 
