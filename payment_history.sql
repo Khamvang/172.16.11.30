@@ -55,7 +55,48 @@ alter table sme_lock_down add is_lockdown_file int(11) not null default 0 commen
 
 
 -- 4) import the lockdown file to databses
-
+-- Export from LMS 
+SELECT 
+	usc.id AS `no`,
+	1 AS `times`,
+	usc.prospect_id AS `contract_no`, 
+	c.ncn AS `ncn`, 
+	usc.duration AS `duration_month`, 
+	usc.start_date AS `start_date`, 
+	usc.end_date AS `end_date`, 
+	c.contract_date AS `contract_date`, 
+	usc.first_payment_date AS `new_lastpayment_date`, 
+	CASE 
+		WHEN usc.schecule_updation_scenarios = 1 THEN 'Pay interest during covid affected'
+		WHEN usc.schecule_updation_scenarios = 2 THEN 'No the payment during covid affected'
+		WHEN usc.schecule_updation_scenarios = 3 THEN 'Pay interest during covid affected (DDT)'
+		WHEN usc.schecule_updation_scenarios = 4 THEN 'No the payment during covid affected (DDT)'
+		WHEN usc.schecule_updation_scenarios = 5 THEN 'Pay interest during covid affected (Normal)'
+		WHEN usc.schecule_updation_scenarios = 6 THEN 'No the payment during covid affected (Normal)'
+		ELSE NULL
+	END AS `scenario`, 
+	CONVERT(CAST(CONVERT( usc.created_by_notes USING latin1) AS binary) USING utf8) `remark`, 
+	NULL AS `rank`, 
+	REPLACE( CONVERT(CAST(CONVERT(CONCAT(cu.customer_first_name_lo , " ", cu.customer_last_name_lo , " ", cu.company_name) using latin1) as binary) using utf8), '-', '') AS `customer_name`, 
+	cu.main_contact_no AS `customer_phone`, 
+	FROM_UNIXTIME(usc.date_created, '%Y-%m-%d') AS `input_date`, 
+	us.staff_no AS `sale_staff_no`, 
+	UPPER(us.nickname) AS `sales_name`, 
+	UPPER(CONCAT(uc.staff_no, ' - ', uc.nickname) ) AS `contract_staff`, 
+	CASE 
+		WHEN usc.status = 0 THEN 'Rejected'
+		WHEN usc.status = 1 THEN 'Sales Submit'
+		WHEN usc.status = 2 THEN 'Credit Approval'
+		WHEN usc.status = 3 THEN 'Contract Approval'
+		WHEN usc.status = 4 THEN 'Accounting Approval'
+	END AS `status`, 
+	0 AS `is_lockdown_file`
+FROM update_schedule usc
+LEFT JOIN tblcontract c ON (c.prospect_id = usc.prospect_id)
+LEFT JOIN tblcustomer cu ON (cu.id = c.customer_id)
+LEFT JOIN tbluser us ON (us.id = usc.created_by_user_id)
+LEFT JOIN tbluser uc ON (uc.id = usc.second_approved_by_user_id)
+WHERE usc.start_date IS NOT NULL AND usc.start_date != '0000-00-00' ;
 
 
 
@@ -563,4 +604,23 @@ LEFT JOIN (
 WHERE t.rn = 1
   AND c.status IN (4, 6, 7) 
 GROUP BY c.contract_no;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
