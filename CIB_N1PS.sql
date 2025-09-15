@@ -149,16 +149,52 @@ create table cib_realestate.`tblc2.1` (
 # check and export the contract numbers
 select c.contract_no , from_unixtime(c.disbursed_datetime, '%Y-%m-%d') 'disbursed_date' 
 from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
-where p.contract_type in (5) and c.status in (4,6,7) and from_unixtime(c.disbursed_datetime, '%Y-%m-%d') between '2023-01-01' and '2025-02-28';
+where p.contract_type in (5) and c.status in (4,6,7) and from_unixtime(c.disbursed_datetime, '%Y-%m-%d') between '2023-01-01' and '2025-08-31';
 
 
-#CIB A1 as table
+
 
 -- insert A1 the old data from last month report 
 insert into cib_realestate.tbla1 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`group_ID`,`head_of_group`,`national_ID`,`national_ID_expiry_date`,`passport_number`,`passport_expiry_date`,`familybook`,`family_province_code_if_issue`,`family_issue_date`,`birthdate`,`1st_name_(english)`,`2nd_name_(english)`,`surname_(english)`,`1st_name_(lao)`,`surname_(lao)`,`old _surname_(english)`,`old_surname_(lao)`,`nationality`,`gender`,`civil_status`,`spouse_1st_(english)`,`spouse_2nd_(english)`,`spouse_surname_(english)`,`spouse_1st_(lao)`,`spouse_surname_(lao)`,`datetime_updated`)
-select '2025-02-28',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`group_ID`,`head_of_group`,`national_ID`,`national_ID_expiry_date`,`passport_number`,`passport_expiry_date`,`familybook`,`family_province_code_if_issue`,`family_issue_date`,`birthdate`,`1st_name_(english)`,`2nd_name_(english)`,`surname_(english)`,`1st_name_(lao)`,`surname_(lao)`,`old _surname_(english)`,`old_surname_(lao)`,`nationality`,`gender`,`civil_status`,`spouse_1st_(english)`,`spouse_2nd_(english)`,`spouse_surname_(english)`,`spouse_1st_(lao)`,`spouse_surname_(lao)`,`datetime_updated`
-from cib_realestate.tbla1 where date_report = '2025-01-31'
-	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla1 WHERE date_report = '2025-02-28' ) ;
+select '2025-08-31',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`group_ID`,`head_of_group`,`national_ID`,`national_ID_expiry_date`,`passport_number`,`passport_expiry_date`,`familybook`,`family_province_code_if_issue`,`family_issue_date`,`birthdate`,`1st_name_(english)`,`2nd_name_(english)`,`surname_(english)`,`1st_name_(lao)`,`surname_(lao)`,`old _surname_(english)`,`old_surname_(lao)`,`nationality`,`gender`,`civil_status`,`spouse_1st_(english)`,`spouse_2nd_(english)`,`spouse_surname_(english)`,`spouse_1st_(lao)`,`spouse_surname_(lao)`,`datetime_updated`
+from cib_realestate.tbla1 where date_report = '2025-07-31'
+	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla1 WHERE date_report = '2025-08-31' ) 
+;
+
+-- insert A4 the old data from last month report 
+insert into cib_realestate.tbla4 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`address_number_and_street_(english)`,`address_village_(english)`,`address_district_(english)`,`address_number_and_street_(lao)`,`address_village_(lao)`,`address_district_(lao)`,`address_province_code`,`datetime_updated`)
+select '2025-08-31',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`address_number_and_street_(english)`,`address_village_(english)`,`address_district_(english)`,`address_number_and_street_(lao)`,`address_village_(lao)`,`address_district_(lao)`,`address_province_code`,`datetime_updated`
+from cib_realestate.tbla4 where date_report = '2025-07-31'
+	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla4 WHERE date_report = '2025-08-31' ) 
+;
+
+
+-- insert A5 the old data from last month report 
+insert into cib_realestate.tbla5 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`telephone_no`,`mobile_no`,`fax`,`datetime_updated`)
+select '2025-08-31',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`telephone_no`,`mobile_no`,`fax`,`datetime_updated`
+from cib_realestate.tbla5 where date_report = '2025-07-31'
+	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla5 WHERE date_report = '2025-08-31' ) 
+;
+
+
+-- insert B1
+
+
+-- insert C1 the old data from last month report 
+insert into cib_realestate.tblc1 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`owner_gender`,`owner_1st_name_(english)`,`owner 2nd_name_(english)`,`owner_surname_(english)`,`owner_1st_name_(lao)`,`owner_surname_(lao)`,`collateral_type`,`collateral_value`,`currency_code`,`collateral_status`,`date_time_updated`)
+select '2025-08-31',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`owner_gender`,`owner_1st_name_(english)`,`owner 2nd_name_(english)`,`owner_surname_(english)`,`owner_1st_name_(lao)`,`owner_surname_(lao)`,`collateral_type`,`collateral_value`,`currency_code`,`collateral_status`,`date_time_updated`
+from cib_realestate.tblc1 where date_report = '2025-07-31'
+	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tblc1 WHERE date_report = '2025-08-31' ) 
+;
+
+
+-- insert C2.1 the old data from last month report 
+insert into cib_realestate.`tblc2.1` (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`value`,`land_number`,`land_size`,`land_unit`,`land_mapcode`,`land_title_date`,`location_number_and_street_(english)`,`location_village_(english)`,`location_distrcit_(english)`,`location_number_and_street_(lao)`,`location_village_(lao)`,`location_distrcit_(lao)`,`location_province_code`)
+select '2025-08-31',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`value`,`land_number`,`land_size`,`land_unit`,`land_mapcode`,`land_title_date`,`location_number_and_street_(english)`,`location_village_(english)`,`location_distrcit_(english)`,`location_number_and_street_(lao)`,`location_village_(lao)`,`location_distrcit_(lao)`,`location_province_code`
+from cib_realestate.`tblc2.1` where date_report = '2025-07-31'
+	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.`tblc2.1` WHERE date_report = '2025-08-31' ) 
+;
+
 
 
 -- insert A1 new data from LALCO live server
@@ -221,18 +257,10 @@ FROM  tblcustomer cu
 RIGHT JOIN tblprospect p ON (p.customer_id = cu.id)
 RIGHT JOIN tblcontract c ON (c.prospect_id = p.id)
 LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-02-28' 
+where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-08-31' 
 	-- and c.contract_no in ()
 ORDER BY c.contract_no ;
 
-
-#CIB A4 as table 
-
--- insert A4 the old data from last month report 
-insert into cib_realestate.tbla4 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`address_number_and_street_(english)`,`address_village_(english)`,`address_district_(english)`,`address_number_and_street_(lao)`,`address_village_(lao)`,`address_district_(lao)`,`address_province_code`,`datetime_updated`)
-select '2025-02-28',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`address_number_and_street_(english)`,`address_village_(english)`,`address_district_(english)`,`address_number_and_street_(lao)`,`address_village_(lao)`,`address_district_(lao)`,`address_province_code`,`datetime_updated`
-from cib_realestate.tbla4 where date_report = '2025-01-31'
-	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla4 WHERE date_report = '2025-02-28' ) ;
 
 
 -- insert A4 the old data from LALCO live server
@@ -282,19 +310,9 @@ RIGHT JOIN tblcontract c ON (c.prospect_id = p.id)
 left join tblcity ci on (ci.id = cu.address_city)
 left join tblvillage v on (v.id = cu.address_village_id)
 LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-02-28'
+where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-08-31'
 	-- and c.contract_no in ()
 ORDER BY c.contract_no ;
-
-
-
-#CIB A5 as table (Ready to export)
-
--- insert A5 the old data from last month report 
-insert into cib_realestate.tbla5 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`telephone_no`,`mobile_no`,`fax`,`datetime_updated`)
-select '2025-02-28',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`telephone_no`,`mobile_no`,`fax`,`datetime_updated`
-from cib_realestate.tbla5 where date_report = '2025-01-31'
-	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tbla5 WHERE date_report = '2025-02-28' ) ;
 
 
 -- insert A5 the old data from LALCO live server
@@ -315,13 +333,12 @@ FROM  tblcustomer cu
 RIGHT JOIN tblprospect p ON (p.customer_id = cu.id)
 RIGHT JOIN tblcontract c ON (c.prospect_id = p.id)
 LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-02-28'
+where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-08-31'
 	-- and c.contract_no in ()
 ORDER BY c.contract_no ;
 
 
 
-#CIB B1 as table
 
 -- insert B1 the old data from LALCO live server
 SELECT 
@@ -364,14 +381,14 @@ FROM  tblcustomer cu
 RIGHT JOIN tblprospect p ON  (p.customer_id = cu.id)
 RIGHT JOIN tblcontract c ON  (c.prospect_id = p.id)
 LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-02-28'
+where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-08-31'
 -- 	and c.contract_no in ()
 ORDER BY c.contract_no ;
 
 -- ___________________________________ B1 if not data in table daily report _______________________________________
 -- insert B1 the old data from LALCO live server
 SELECT 
-	'2025-02-28' `date_report`,
+	'2025-08-31' `date_report`,
 	c.contract_no ,
 	cu.id `bank_customer_ID`,
 	CASE p.call_centre WHEN 1 THEN '01' ELSE '01' END `branch_ID_code`,
@@ -390,17 +407,17 @@ SELECT
 	case when c.contract_no in (2051043) then 0 else po.principal_outstanding end `outstanding_balance`,
 	'' `loan_account_number`,
 	case when c.contract_no in (2051043) then 0 
-		WHEN c.status in (6,7) THEN 0 WHEN p.first_payment_date >= '2025-02-28' THEN 0 
-		WHEN c.status = 4 and DATEDIFF('2025-02-28', date_add(ps.payment_date, interval + 1 month) ) + 1 <=0 then 0
-		WHEN c.status = 4 THEN DATEDIFF('2025-02-28', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1
+		WHEN c.status in (6,7) THEN 0 WHEN p.first_payment_date >= '2025-08-31' THEN 0 
+		WHEN c.status = 4 and DATEDIFF('2025-08-31', date_add(ps.payment_date, interval + 1 month) ) + 1 <=0 then 0
+		WHEN c.status = 4 THEN DATEDIFF('2025-08-31', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1
 	end `number_of_days_slow`,
 	CASE when c.contract_no in (2051043) then 'A'
 		WHEN c.status in (6,7) THEN 'A'
-		WHEN p.first_payment_date >= '2025-02-28' THEN 'A'
-		WHEN c.status = 4 and DATEDIFF('2025-02-28', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 0 AND 30 THEN 'A'
-		WHEN c.status = 4 and DATEDIFF('2025-02-28', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 31 AND 60 THEN 'B'
-		WHEN c.status = 4 and DATEDIFF('2025-02-28', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 61 AND 90 THEN 'C'
-		WHEN c.status = 4 and DATEDIFF('2025-02-28', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 91 AND 180 THEN 'D'
+		WHEN p.first_payment_date >= '2025-08-31' THEN 'A'
+		WHEN c.status = 4 and DATEDIFF('2025-08-31', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 0 AND 30 THEN 'A'
+		WHEN c.status = 4 and DATEDIFF('2025-08-31', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 31 AND 60 THEN 'B'
+		WHEN c.status = 4 and DATEDIFF('2025-08-31', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 61 AND 90 THEN 'C'
+		WHEN c.status = 4 and DATEDIFF('2025-08-31', case when ps.payment_date is null then p.first_payment_date else date_add(ps.payment_date, interval + 1 month) end) + 1 BETWEEN 91 AND 180 THEN 'D'
 		ELSE 'E'
 	END `loan_class`,
 	'CL' `loan_type`,
@@ -411,7 +428,7 @@ SELECT
 	case when c.contract_no in (2051043) then 'INACTIVE' 
 		when c.status = 4 then 'ACTIVE' when c.status in (6,7) then 'INACTIVE' else 'INACTIVE' 
 	END `loan_status`,
-	DATE_FORMAT('2025-02-28', '%d/%m/%Y %H:%m:%s') `date_time_updated` 
+	DATE_FORMAT('2025-08-31', '%d/%m/%Y %H:%m:%s') `date_time_updated` 
 FROM  tblcustomer cu
 RIGHT JOIN tblprospect p ON  (p.customer_id = cu.id)
 RIGHT JOIN tblcontract c ON  (c.prospect_id = p.id)
@@ -419,16 +436,10 @@ left join (select c.contract_no, SUM(CASE WHEN pm.`type` = 'principal' THEN pm.a
 	from tblcontract c left join tblpayment pm on (pm.contract_id = c.id) group by c.contract_no ) po on (po.contract_no = c.contract_no)
 LEFT JOIN tblpaymentschedule ps ON ps.id = (SELECT id FROM tblpaymentschedule WHERE status = 1 and payment_amount !=0 and contract_id = c.id ORDER BY payment_date DESC LIMIT 1)
 where p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7)
-  and c.contract_no in ()
+ -- and c.contract_no in ()
 ORDER BY c.contract_no ; 
 
-#C1 as table
 
--- insert C1 the old data from last month report 
-insert into cib_realestate.tblc1 (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`owner_gender`,`owner_1st_name_(english)`,`owner 2nd_name_(english)`,`owner_surname_(english)`,`owner_1st_name_(lao)`,`owner_surname_(lao)`,`collateral_type`,`collateral_value`,`currency_code`,`collateral_status`,`date_time_updated`)
-select '2025-02-28',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`owner_gender`,`owner_1st_name_(english)`,`owner 2nd_name_(english)`,`owner_surname_(english)`,`owner_1st_name_(lao)`,`owner_surname_(lao)`,`collateral_type`,`collateral_value`,`currency_code`,`collateral_status`,`date_time_updated`
-from cib_realestate.tblc1 where date_report = '2025-01-31'
-	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.tblc1 WHERE date_report = '2025-02-28' ) ;
 
 
 -- insert C1 the old data from LALCO live server
@@ -460,32 +471,23 @@ RIGHT JOIN tblcontract c ON (c.prospect_id = p.id)
 LEFT JOIN tblprospectassetland pa ON  (p.id = pa.prospect_id)
 LEFT JOIN tblassetvaluationland av ON (av.id = pa.assetvaluation_land_id)
 LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-WHERE p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-02-28' 
+WHERE p.contract_type = 5 and p.status = 3 AND c.status in (4,6,7) AND dr.`date` = '2025-08-31' 
 	-- and c.contract_no in ()
 ORDER BY c.contract_no ;
 
 
 -- update collateral status
-select * from cib_realestate.tblc1 c1 join cib_realestate.tblb1 b1 on (c1.contract_no = b1.contract_no and c1.date_report = '2025-02-28' and b1.date_report = c1.date_report) 
+select * from cib_realestate.tblc1 c1 join cib_realestate.tblb1 b1 on (c1.contract_no = b1.contract_no and c1.date_report = '2025-08-31' and b1.date_report = c1.date_report) 
 where c1.`collateral_status` = '' or c1.`collateral_status` != b1.`loan_status`;
 
 
-update cib_realestate.tblc1 c1 join cib_realestate.tblb1 b1 on (c1.contract_no = b1.contract_no and c1.date_report = '2025-02-28' and b1.date_report = c1.date_report) 
+update cib_realestate.tblc1 c1 join cib_realestate.tblb1 b1 on (c1.contract_no = b1.contract_no and c1.date_report = '2025-08-31' and b1.date_report = c1.date_report) 
 set c1.`collateral_status` = b1.`loan_status`;
-
-
-#C2.1 as table
-
--- insert C2.1 the old data from last month report 
-insert into cib_realestate.`tblc2.1` (`date_report`,`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`value`,`land_number`,`land_size`,`land_unit`,`land_mapcode`,`land_title_date`,`location_number_and_street_(english)`,`location_village_(english)`,`location_distrcit_(english)`,`location_number_and_street_(lao)`,`location_village_(lao)`,`location_distrcit_(lao)`,`location_province_code`)
-select '2025-02-28',`contract_no`,`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`value`,`land_number`,`land_size`,`land_unit`,`land_mapcode`,`land_title_date`,`location_number_and_street_(english)`,`location_village_(english)`,`location_distrcit_(english)`,`location_number_and_street_(lao)`,`location_village_(lao)`,`location_distrcit_(lao)`,`location_province_code`
-from cib_realestate.`tblc2.1` where date_report = '2025-01-31'
-	AND contract_no NOT IN (SELECT contract_no FROM cib_realestate.`tblc2.1` WHERE date_report = '2025-02-28' ) ;
 
 
 -- insert C2.1 the old data from LALCO live server
 select 
-	'2025-02-28' `date_report`,
+	'2025-08-31' `date_report`,
 	c.contract_no ,
 	cu.id `bank_customer_ID`,
 	case p.call_centre when 1 then '01' else '01' end `branch_ID_code`,
@@ -532,7 +534,7 @@ left join tblprovince pv on (pv.id = av.land_province_id)
 left join tblcity ci on (ci.id=av.land_city_id)
 left join tblvillage v on (v.id=av.land_village_id)
 -- LEFT JOIN tbldailyreport dr ON  (dr.contract_id = c.id)
-where p.contract_type = 5 and p.status = 3 and c.status in (4,6,7) -- AND dr.`date` = '2025-02-28'
+where p.contract_type = 5 and p.status = 3 and c.status in (4,6,7) -- AND dr.`date` = '2025-08-31'
 	-- and c.contract_no in ()
 order by c.contract_no ;
 
@@ -540,12 +542,12 @@ order by c.contract_no ;
 
 
 -- check
-select * from cib_realestate.tbla1 where date_report = '2025-02-28';
-select * from cib_realestate.tbla4 where date_report = '2025-02-28';
-select * from cib_realestate.tbla5 where date_report = '2025-02-28';
-select * from cib_realestate.tblb1 where date_report = '2025-02-28';
-select * from cib_realestate.tblc1 where date_report = '2025-02-28';
-select * from cib_realestate.`tblc2.1` where date_report = '2025-02-28';
+select * from cib_realestate.tbla1 where date_report = '2025-08-31';
+select * from cib_realestate.tbla4 where date_report = '2025-08-31';
+select * from cib_realestate.tbla5 where date_report = '2025-08-31';
+select * from cib_realestate.tblb1 where date_report = '2025-08-31';
+select * from cib_realestate.tblc1 where date_report = '2025-08-31';
+select * from cib_realestate.`tblc2.1` where date_report = '2025-08-31';
 
 
 
@@ -553,37 +555,37 @@ select * from cib_realestate.`tblc2.1` where date_report = '2025-02-28';
 -- export A1
 select concat_ws('|','A1',`bank_customer_ID`,`branch_ID_code`,`group_ID`,`head_of_group`,`national_ID`,`national_ID_expiry_date`,`passport_number`,`passport_expiry_date`,`familybook`,`family_province_code_if_issue`,`family_issue_date`,`birthdate`,`1st_name_(english)`,`2nd_name_(english)`,`surname_(english)`,`1st_name_(lao)`,`surname_(lao)`,`old _surname_(english)`,`old_surname_(lao)`,`nationality`,`gender`,`civil_status`,`spouse_1st_(english)`,`spouse_2nd_(english)`,`spouse_surname_(english)`,`spouse_1st_(lao)`,`spouse_surname_(lao)`,`datetime_updated`)
 from cib_realestate.tbla1 
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 -- export A4
 select concat_ws('|','A4',`bank_customer_ID`,`branch_ID_code`,`address_number_and_street_(english)`,`address_village_(english)`,`address_district_(english)`,`address_number_and_street_(lao)`,`address_village_(lao)`,`address_district_(lao)`,`address_province_code`,`datetime_updated`)
 from cib_realestate.tbla4
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 -- export A5
 select concat_ws('|','A5',`bank_customer_ID`,`branch_ID_code`,`telephone_no`,`mobile_no`,`fax`,`datetime_updated`)
 from cib_realestate.tbla5
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 -- export B1
 select concat_ws('|','B1',`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`open_date`,`expiry_date`,`extension_date`,`interest_rate`,`purpose_code`,`amount_of_loan`,`currency_code`,`outstanding_balance`,`loan_account_number`,`number_of_days_slow`,`loan_class`,`loan_type`,`loan_term`,`loan_status`,`date_time_updated`)
 from cib_realestate.tblb1
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 -- export C1
 select concat_ws('|','C1',`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`owner_gender`,`owner_1st_name_(english)`,`owner 2nd_name_(english)`,`owner_surname_(english)`,`owner_1st_name_(lao)`,`owner_surname_(lao)`,`collateral_type`,`collateral_value`,`currency_code`,`collateral_status`,`date_time_updated`)
 from cib_realestate.tblc1
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 -- export C2.1
 select concat_ws('|','C2.1',`bank_customer_ID`,`branch_ID_code`,`loan_ID`,`collateral_ID`,`value`,`land_number`,`land_size`,`land_unit`,`land_mapcode`,`land_title_date`,`location_number_and_street_(english)`,`location_village_(english)`,`location_distrcit_(english)`,`location_number_and_street_(lao)`,`location_village_(lao)`,`location_distrcit_(lao)`,`location_province_code`)
 from cib_realestate.`tblc2.1`
-where date_report = '2025-02-28' ;
+where date_report = '2025-08-31' ;
 
 
 

@@ -57,9 +57,10 @@ CREATE TABLE `sme_lock_down` (
 ) ENGINE=InnoDB AUTO_INCREMENT=34159 DEFAULT CHARSET=utf8mb3;
 
 
-SELECT * FROM update_schedule WHERE prospect_id = 2071250 ;
 
-SELECT * FROM sme_lock_down sld WHERE contract_no = 2071250;
+select * from update_schedule us where us.prospect_id  = 2101753; 
+
+select * from sme_lock_down where contract_no = 2101753 and status IN ('ຜ່ານ', 'Accounting Approval')  -- order by id desc limit 1 
 
 
 SELECT * 
@@ -84,8 +85,8 @@ WHERE usc.id IS NOT NULl
 -- 4) import the lockdown file to databses
 -- Export from LMS 
 INSERT INTO sme_lock_down
-
 SELECT 
+	NULL AS `id`,
 	usc.id AS `no`,
 	1 AS `times`,
 	usc.prospect_id AS `contract_no`, 
@@ -127,38 +128,202 @@ LEFT JOIN tblcontract c ON (c.prospect_id = usc.prospect_id)
 LEFT JOIN tblcustomer cu ON (cu.id = c.customer_id)
 LEFT JOIN tbluser us ON (us.id = usc.created_by_user_id)
 LEFT JOIN tbluser uc ON (uc.id = usc.second_approved_by_user_id)
-WHERE usc.id > (SELECT MAX(`no`) FROM sme_lock_down WHERE is_lockdown_file = 0)
-
+WHERE 
+	usc.id > (SELECT MAX(`no`) FROM sme_lock_down WHERE is_lockdown_file = 0)
+	/*usc.status = 4
+	-- AND usc.prospect_id = 2101753
+	AND usc.start_date IS NOT NULL AND usc.start_date != '0000-00-00'
+	AND FROM_UNIXTIME(usc.date_updated, '%Y-%m-%d') >= '2025-01-01'
 -- WHERE usc.start_date IS NOT NULL AND usc.start_date != '0000-00-00' ; -- 1st time to import
+*/
+;
 
 
 
 
--- 5) update the contract_no
+-- 5) update the contract_no and create INDEX
 
 update sme_lock_down sld inner join tblcontract c on (sld.ncn = c.ncn)
 set sld.contract_no = c.contract_no ;
 
-SELECT * FROM sme_lock_down;
+SHOW INDEX FROM tblcollection;
+
+CREATE INDEX idx_collection_id ON tblpayment(collection_id);
+CREATE INDEX idx_status ON tblpaymentschedule(status);
+CREATE INDEX idx_payment_date ON tblpaymentschedule(payment_date);
+CREATE INDEX idx_date_collected ON tblcollection(date_collected);
+
+
+
 
 
 -- 6) data details for checking
-SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
-	ps1.payment_date, t.due_date, t.date_collected 
-from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
-left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
-left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
-left join (
-	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
-		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
-		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-    FROM tblpayment pm
-    LEFT JOIN tblcollection co ON pm.collection_id = co.id
-    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
-	) t on (c.id = t.contract_id)
-WHERE t.rn = 1
-	and c.status in (4,6,7)
+
+-- SChedule to check 
+SELECT *
+FROM 
+	(SELECT 
+		ps.prospect_id,
+		ps.payment_date,
+		co.date_collected,
+		sld.start_date AS `new_start_date`,
+		ps.payment_date >= sld.start_date `true`,
+		TIMESTAMPDIFF(day, ps.payment_date, co.date_collected) AS `delay_days`,
+		TIMESTAMPDIFF(MONTH, ps.payment_date, co.date_collected) AS `delay_month`,
+		pm.`type`,
+		ps.status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC, FIELD(pm.type, 'principal', 'interest', 'penalty') ) AS rn
+	FROM tblpaymentschedule ps
+	LEFT JOIN sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = ps.prospect_id and status IN ('ຜ່ານ', 'Accounting Approval') order by id desc limit 1 )
+	LEFT JOIN tblpayment pm ON (pm.schedule_id = ps.id)
+	LEFT JOIN tblcollection co ON pm.collection_id = co.id
+	WHERE ps.status = 1
+		AND ps.prospect_id = 2111853 -- 2120956 -- 2101753 -- 2101714 -- 2101701 -- 2101694 -- 2101682 -- 2101687 -- 2101669
+	) t
+WHERE rn = 1
 ;
+
+
+-- Calcualte
+SELECT 
+	prospect_id,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1
+				THEN 1
+			ELSE 0
+		END
+	) `total_no_of_paid`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND (delay_days <= 0 OR delay_days IS NULL)
+				THEN 1
+			ELSE 0
+		END
+	) `total_S_at_5th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND delay_days > 0 AND delay_days <= 5
+				THEN 1
+			ELSE 0
+		END
+	) `total_A_at_10th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND delay_days > 5 AND delay_days <= 15
+				THEN 1
+			ELSE 0
+		END
+	) `total_B_at_20th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND delay_days > 15 AND delay_month <= 0
+				THEN 1
+			ELSE 0
+		END
+	) `total_C_at_31st`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND delay_month > 0
+				THEN 1
+			ELSE 0
+		END
+	) `total_F_after_1_month`,
+-- 
+-- Lasted contract 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_no_of_paid`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date 
+					AND (delay_days <= 0 OR delay_days IS NULL)
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_S_at_5th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date 
+					AND delay_days > 0 AND delay_days <= 5
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_A_at_10th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date 
+					AND delay_days > 5 AND delay_days <= 15
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_B_at_20th`,
+-- 
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date 
+					AND delay_days > 15 AND delay_month <= 0
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_C_at_31st`,
+	SUM(
+		CASE 
+			WHEN status = 1 AND rn = 1 
+					AND payment_date >= new_start_date 
+					AND delay_month > 0
+				THEN 1
+			ELSE 0
+		END
+	) `lasted_contract_F_after_1_month`
+FROM 
+	(SELECT 
+		ps.prospect_id,
+		ps.payment_date,
+		co.date_collected,
+		sld.start_date AS `new_start_date`,
+		TIMESTAMPDIFF(day, ps.payment_date, co.date_collected) AS `delay_days`,
+		TIMESTAMPDIFF(MONTH, ps.payment_date, co.date_collected) AS `delay_month`,
+		pm.`type`,
+		ps.status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC, FIELD(pm.type, 'principal', 'interest', 'penalty') ) AS rn
+	FROM tblpaymentschedule ps
+	LEFT JOIN sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = ps.prospect_id and status IN ('ຜ່ານ', 'Accounting Approval') order by id desc limit 1 )
+	LEFT JOIN tblpayment pm ON (pm.schedule_id = ps.id)
+	LEFT JOIN tblcollection co ON pm.collection_id = co.id
+	WHERE ps.status = 1
+		AND ps.prospect_id IN (2111853 , 2120956 , 2121626 , 2101753 , 2101714 , 2101701 , 2101694 , 2101682 , 2101687 , 2101669)
+	) t
+GROUP BY prospect_id
+;
+
+
+
+
+
 
 
 
@@ -168,310 +333,406 @@ WHERE t.rn = 1
 SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''));
 
 
--- 7) Calculation
-SELECT c.contract_no , p.first_payment_date, p.last_payment_date, sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
-	-- all in contract
-	case when ps1.payment_date >= t.due_date then count(*) end 'paid_times', 
-	COUNT( CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
-				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
-		   END
-	) AS 'S_at_5th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end ) as 'A_at_10th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th',
-	count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st',
-	count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month',
-	-- last contract
-	case 
-		when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
-	end 'paid_times_of_last_contract',
-	COUNT( 
-		CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
-				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
-		END
-	) AS 'S_at_5th_of_last_contract',
-	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end 
-	) as 'A_at_10th_of_last_contract',
-	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) as 'B_at_20th_of_last_contract',
-	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) as 'C_at_31st_of_last_contract',
-	count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) as 'F_after_1_month_of_last_contract'
-from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
-left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
-left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
-left join (
-	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
-		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
-		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-    FROM tblpayment pm
-    LEFT JOIN tblcollection co ON pm.collection_id = co.id
-    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
-	) t on (c.id = t.contract_id)
-WHERE t.rn = 1
-	and c.status in (4,6,7)
-group by contract_no ;
 
-
--- 8) Query for generating the DDT sheet report
--- URL: https://docs.google.com/spreadsheets/d/12-L-kqOfd80RHTFrI_9mNF8rZJ5DRMIGvu4WU0Y5mx4/edit?gid=1260398977#gid=1260398977
-
-/* -- Old query, don't use it, please check the new query
-SELECT c.contract_no , 
-	CASE p.contract_type 
-	        WHEN 1 THEN 'SME Car'
-	        WHEN 2 THEN 'SME Bike' 
-	        WHEN 3 THEN 'Car Leasing'
-	        WHEN 4 THEN 'Bike Leasing' 
-	        WHEN 5 THEN 'Real Estate'
-	        WHEN 6 THEN 'Trade Finance'
-	        ELSE NULL
-    END AS contract_type,
-CONVERT(CAST(CONVERT(CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en , '-', cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) USING latin1) AS binary) USING utf8) AS customer_name,
-cu.main_contact_no,
-    CASE p.payment_schedule_type 
-        WHEN '1' THEN 'Normal' 
-        WHEN '2' THEN 'Bullet' 
-        WHEN '3' THEN 'Bullet-MOU'
-        ELSE '' 
-    END AS payment_schedule_type,
-p.loan_amount, p.trading_currency, 
-null as 'due_for_next_installment' , null as 'totoal_principal_outstanding' , null as 'totoal_principal_outstanding_usd' ,
-null as 'sale_person',
-CASE c.status 
-        WHEN 0 THEN 'Pending' 
-        WHEN 1 THEN 'Pending Approval'
-        WHEN 2 THEN 'Pending Disbursement' 
-        WHEN 3 THEN 'Disbursement Approval'
-        WHEN 4 THEN 'Active' 
-        WHEN 5 THEN 'Cancelled'
-        WHEN 6 THEN 'Refinance' 
-        WHEN 7 THEN 'Closed' 
-        ELSE NULL
-    END AS contract_status,
-p.first_payment_date, 
-sld.start_date as 'first_payment_date_of_last_3moths',
-p.last_payment_date,
-ps2.principal_amount as 'last_installment_principal',
-p.no_of_payment, 
-case When p.payment_schedule_type = 1 then 'Normal' when p.loan_amount = ps2.principal_amount then 'DDT' else 'DDT+Installment' end 'ddt_installment', 
--- sld.start_date `new_1st_payment_date`, sld.new_lastpayment_date,
-	-- conbine if has lockdown then use last contract, if not then use that contract date
-	CASE WHEN sld.start_date is null 
-		THEN count(*)
-		when ps1.payment_date >= t.due_date then count(case when t.due_date >= sld.start_date then 1 end ) 
-	END AS 'paid_times_of_last_contract',
-	-- S_at_5th
-	CASE WHEN sld.start_date is null 
-		THEN 
-			COUNT( CASE WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
-					WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
-			   END
-			)
-		ELSE
-			COUNT( 
-				CASE WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0) THEN 1
-						WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 0 THEN 1
+SELECT 
+	-- Contract details
+	c.contract_no,
+	CASE 
+		p.contract_type 
+		WHEN 1 THEN 'SME Car'
+		WHEN 2 THEN 'SME Bike'
+		WHEN 3 THEN 'Car Leasing'
+		WHEN 4 THEN 'Bike Leasing'
+		WHEN 5 THEN 'Real Estate'
+		WHEN 6 THEN 'Trade Finance'
+		ELSE NULL
+	END AS contract_type,
+	-- 
+	-- Customer name (combined in English and Lao, properly encoded)
+	CONVERT(CAST(CONVERT(
+		CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
+			   cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
+		USING latin1) AS binary) USING utf8) AS customer_name,
+	cu.main_contact_no,
+	-- 
+	-- Payment schedule type
+	CASE 
+		p.payment_schedule_type 
+		WHEN '1' THEN 'Normal'
+		WHEN '2' THEN 'Bullet'
+		WHEN '3' THEN 'Bullet-MOU'
+		ELSE ''
+	END AS payment_schedule_type,
+	-- 
+	-- Loan and financial details
+	p.loan_amount,
+	p.trading_currency,
+	p.monthly_interest,
+   pmh.monthly_interest_2nd,
+	NULL AS total_principal_outstanding_usd,
+	c.date_closed,
+	-- 
+	-- Contract status
+	CASE c.status 
+		WHEN 0 THEN 'Pending'
+		WHEN 1 THEN 'Pending Approval'
+		WHEN 2 THEN 'Pending Disbursement'
+		WHEN 3 THEN 'Disbursement Approval'
+		WHEN 4 THEN 'Active'
+		WHEN 5 THEN 'Cancelled'
+		WHEN 6 THEN 'Refinance'
+		WHEN 7 THEN 'Closed'
+		ELSE NULL
+	END AS contract_status,
+	-- 
+	-- Payment dates
+	p.first_payment_date,
+	pmh.new_start_date AS first_payment_date_of_last_3months,
+	p.last_payment_date,
+	ps2.principal_amount AS last_installment_principal,
+	-- 
+	-- Payment structure type
+	p.no_of_payment,
+	CASE 
+		WHEN p.payment_schedule_type = 1 THEN 'Normal'
+		WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
+		ELSE 'DDT+Installment'
+	END AS ddt_installment,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_no_of_paid
+		ELSE pmh.total_no_of_paid
+	END AS `no_of_paid`,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_S_at_5th
+		ELSE pmh.total_S_at_5th
+	END AS `S_at_5th`,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_A_at_10th
+		ELSE pmh.total_A_at_10th
+	END AS `A_at_10th`,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_B_at_20th
+		ELSE pmh.total_B_at_20th
+	END AS `B_at_20th`,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_C_at_31st
+		ELSE pmh.total_C_at_31st
+	END AS `C_at_31st`,
+	CASE 
+		WHEN pmh.new_start_date IS NOT NULL THEN pmh.lasted_contract_F_after_1_month
+		ELSE pmh.total_F_after_1_month
+	END AS `F_after_1_month`
+FROM tblcontract c
+LEFT JOIN tblprospect p ON (p.id = c.prospect_id)
+LEFT JOIN tblcustomer cu ON (p.customer_id = cu.id)
+LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id 
+	ORDER BY payment_date DESC LIMIT 1
+)
+-- Calcualte
+LEFT JOIN (
+		SELECT 
+			prospect_id,
+			monthly_interest_2nd,
+			new_start_date,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1
+						THEN 1
+					ELSE 0
 				END
-			) 
-	END AS 'S_at_5th_of_last_contract',
-	-- A_at_10th
-	CASE WHEN sld.start_date is null 
-		THEN
-			count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end )
-		ELSE
-			count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 0 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 5 then 1 end 
-			) 
-	END AS 'A_at_10th_of_last_contract',
-	-- B_at_20th
-	CASE WHEN sld.start_date is null 
-		THEN
-			count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end )
-		ELSE
-			count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 5 and TIMESTAMPDIFF(day, t.due_date, t.date_collected) <= 20 then 1 end ) 
-	END AS 'B_at_20th_of_last_contract',
-	-- C_at_31st
-	CASE WHEN sld.start_date is null 
-		THEN
-			count( case when TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end )
-		ELSE
-			count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(day, t.due_date, t.date_collected) > 20 and TIMESTAMPDIFF(month, t.due_date, t.date_collected) = 0 then 1 end ) 
-	END AS 'C_at_31st_of_last_contract',
-	-- F_after_1_month
-	CASE WHEN sld.start_date is null 
-		THEN
-			count( case when TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end )
-		ELSE
-			count( case when t.due_date >= sld.start_date and TIMESTAMPDIFF(month, t.due_date, t.date_collected) >= 1 then 1 end ) 
-	END AS 'F_after_1_month_of_last_contract'
-from tblcontract c left join tblprospect p on (p.id = c.prospect_id)
-left join tblcustomer cu on (p.customer_id = cu.id)
-left join tblpaymentschedule ps1 on ps1.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id and status = 1 order by payment_date desc limit 1 )
-left join tblpaymentschedule ps2 on ps2.id = (select id from tblpaymentschedule where prospect_id = c.prospect_id order by payment_date desc limit 1 )
-left join sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = c.contract_no and status = 'ຜ່ານ' order by id desc limit 1 )
-left join (
-	SELECT pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.`type`, pm.amount, 
-		pm.status AS pm_status, co.status AS co_status, ps.status as ps_status,
-		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-    FROM tblpayment pm
-    LEFT JOIN tblcollection co ON pm.collection_id = co.id
-    inner join tblpaymentschedule ps on (ps.id = pm.schedule_id and ps.status = 1 )
-	) t on (c.id = t.contract_id)
-WHERE t.rn = 1
-	and c.status in (4,6,7)
-group by contract_no;
-*/
+			) `total_no_of_paid`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND (delay_days <= 0 OR delay_days IS NULL)
+						THEN 1
+					ELSE 0
+				END
+			) `total_S_at_5th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND delay_days > 0 AND delay_days <= 5
+						THEN 1
+					ELSE 0
+				END
+			) `total_A_at_10th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND delay_days > 5 AND delay_days <= 15
+						THEN 1
+					ELSE 0
+				END
+			) `total_B_at_20th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND delay_days > 15 AND delay_month <= 0
+						THEN 1
+					ELSE 0
+				END
+			) `total_C_at_31st`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND delay_month > 0
+						THEN 1
+					ELSE 0
+				END
+			) `total_F_after_1_month`,
+		-- 
+		-- Lasted contract 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_no_of_paid`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date 
+							AND (delay_days <= 0 OR delay_days IS NULL)
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_S_at_5th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date 
+							AND delay_days > 0 AND delay_days <= 5
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_A_at_10th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date 
+							AND delay_days > 5 AND delay_days <= 15
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_B_at_20th`,
+		-- 
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date 
+							AND delay_days > 15 AND delay_month <= 0
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_C_at_31st`,
+			SUM(
+				CASE 
+					WHEN status = 1 AND rn = 1 
+							AND payment_date >= new_start_date 
+							AND delay_month > 0
+						THEN 1
+					ELSE 0
+				END
+			) `lasted_contract_F_after_1_month`
+		FROM 
+			(SELECT 
+				ps.prospect_id,
+				ps.payment_date,
+				co.date_collected,
+				sld.start_date AS `new_start_date`,
+				sld.monthly_interest_2nd,
+				TIMESTAMPDIFF(day, ps.payment_date, co.date_collected) AS `delay_days`,
+				TIMESTAMPDIFF(MONTH, ps.payment_date, co.date_collected) AS `delay_month`,
+				pm.`type`,
+				ps.status,
+				ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC, FIELD(pm.type, 'principal', 'interest', 'penalty') ) AS rn
+			FROM tblpaymentschedule ps
+			LEFT JOIN sme_lock_down sld on sld.id = (select id from sme_lock_down where contract_no = ps.prospect_id and status IN ('ຜ່ານ', 'Accounting Approval') order by id desc limit 1 )
+			LEFT JOIN tblpayment pm ON (pm.schedule_id = ps.id)
+			LEFT JOIN tblcollection co ON pm.collection_id = co.id
+			WHERE ps.status = 1
+			) t
+		GROUP BY prospect_id
+		) pmh ON pmh.prospect_id = c.prospect_id 
+WHERE
+	c.status IN (4, 6, 7)
+	-- AND c.contract_no IN (2111853 , 2120956 , 2121626 , 2101753 , 2101714 , 2101701 , 2101694 , 2101682 , 2101687 , 2101669)
+;
 
 
 
+
+
+
+
+
+
+
+
+-- Not use
 -- Query for generating the DDT sheet report
 -- URL: https://docs.google.com/spreadsheets/d/12-L-kqOfd80RHTFrI_9mNF8rZJ5DRMIGvu4WU0Y5mx4/edit?gid=1260398977#gid=1260398977
 
 SELECT 
-    -- Contract details
-    c.contract_no,
-    CASE p.contract_type 
-        WHEN 1 THEN 'SME Car'
-        WHEN 2 THEN 'SME Bike'
-        WHEN 3 THEN 'Car Leasing'
-        WHEN 4 THEN 'Bike Leasing'
-        WHEN 5 THEN 'Real Estate'
-        WHEN 6 THEN 'Trade Finance'
-        ELSE NULL
-    END AS contract_type,
-    -- 
-    -- Customer name (combined in English and Lao, properly encoded)
-    CONVERT(CAST(CONVERT(
-        CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
-               cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
-        USING latin1) AS binary) USING utf8) AS customer_name,
-    cu.main_contact_no,
-    -- 
-    -- Payment schedule type
-    CASE p.payment_schedule_type 
-        WHEN '1' THEN 'Normal'
-        WHEN '2' THEN 'Bullet'
-        WHEN '3' THEN 'Bullet-MOU'
-        ELSE ''
-    END AS payment_schedule_type,
-    -- 
-    -- Loan and financial details
-    p.loan_amount,
-    p.trading_currency,
-    p.monthly_interest,
-    sld.monthly_interest_2nd,
-    NULL AS due_for_next_installment,
-    NULL AS total_principal_outstanding,
-    NULL AS total_principal_outstanding_usd,
-    NULL AS sale_person,
-    -- 
-    -- Contract status
-    CASE c.status 
-        WHEN 0 THEN 'Pending'
-        WHEN 1 THEN 'Pending Approval'
-        WHEN 2 THEN 'Pending Disbursement'
-        WHEN 3 THEN 'Disbursement Approval'
-        WHEN 4 THEN 'Active'
-        WHEN 5 THEN 'Cancelled'
-        WHEN 6 THEN 'Refinance'
-        WHEN 7 THEN 'Closed'
-        ELSE NULL
-    END AS contract_status,
-    -- 
-    -- Payment dates
-    p.first_payment_date,
-    sld.start_date AS first_payment_date_of_last_3months,
-    p.last_payment_date,
-    ps2.principal_amount AS last_installment_principal,
-    -- 
-    -- Payment structure type
-    p.no_of_payment,
-    CASE 
-        WHEN p.payment_schedule_type = 1 THEN 'Normal'
-        WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
-        ELSE 'DDT+Installment'
-    END AS ddt_installment,
-    -- 
-    -- Metrics for paid times and collection statuses
-    CASE 
-        WHEN sld.start_date IS NULL THEN COUNT(*)
-        WHEN ps1.payment_date >= t.due_date THEN COUNT(CASE WHEN t.due_date >= sld.start_date THEN 1 END)
-    END AS paid_times_of_last_contract,
-    -- 
-    -- Collection statuses at various milestones
-    CASE 
-        WHEN sld.start_date IS NULL THEN 
-            COUNT(CASE 
-                WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-            END)
-        ELSE
-            COUNT(CASE 
-                WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND 
-                     (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND 
-                     TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-            END)
-    END AS S_at_5th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-    END AS A_at_10th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-    END AS B_at_20th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-    END AS C_at_31st_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
-    END AS F_after_1_month_of_last_contract
-    -- 
+	-- Contract details
+	c.contract_no,
+	CASE p.contract_type 
+		WHEN 1 THEN 'SME Car'
+		WHEN 2 THEN 'SME Bike'
+		WHEN 3 THEN 'Car Leasing'
+		WHEN 4 THEN 'Bike Leasing'
+		WHEN 5 THEN 'Real Estate'
+		WHEN 6 THEN 'Trade Finance'
+		ELSE NULL
+	END AS contract_type,
+	-- 
+	-- Customer name (combined in English and Lao, properly encoded)
+	CONVERT(CAST(CONVERT(
+		CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
+			   cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
+		USING latin1) AS binary) USING utf8) AS customer_name,
+	cu.main_contact_no,
+	-- 
+	-- Payment schedule type
+	CASE p.payment_schedule_type 
+		WHEN '1' THEN 'Normal'
+		WHEN '2' THEN 'Bullet'
+		WHEN '3' THEN 'Bullet-MOU'
+		ELSE ''
+	END AS payment_schedule_type,
+	-- 
+	-- Loan and financial details
+	p.loan_amount,
+	p.trading_currency,
+	p.monthly_interest,
+	sld.monthly_interest_2nd,
+	NULL AS total_principal_outstanding_usd,
+	c.date_closed,
+	-- 
+	-- Contract status
+	CASE c.status 
+		WHEN 0 THEN 'Pending'
+		WHEN 1 THEN 'Pending Approval'
+		WHEN 2 THEN 'Pending Disbursement'
+		WHEN 3 THEN 'Disbursement Approval'
+		WHEN 4 THEN 'Active'
+		WHEN 5 THEN 'Cancelled'
+		WHEN 6 THEN 'Refinance'
+		WHEN 7 THEN 'Closed'
+		ELSE NULL
+	END AS contract_status,
+	-- 
+	-- Payment dates
+	p.first_payment_date,
+	sld.start_date AS first_payment_date_of_last_3months,
+	p.last_payment_date,
+	ps2.principal_amount AS last_installment_principal,
+	-- 
+	-- Payment structure type
+	p.no_of_payment,
+	CASE 
+		WHEN p.payment_schedule_type = 1 THEN 'Normal'
+		WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
+		ELSE 'DDT+Installment'
+	END AS ddt_installment,
+	-- 
+	-- Metrics for paid times and collection statuses
+	CASE 
+		WHEN sld.start_date IS NULL THEN COUNT(*)
+		WHEN ps1.payment_date >= t.due_date THEN COUNT(CASE WHEN t.due_date >= sld.start_date THEN 1 END)
+	END AS paid_times_of_last_contract,
+	-- 
+	-- Collection statuses at various milestones
+	CASE 
+		WHEN sld.start_date IS NULL THEN 
+			COUNT(CASE 
+				WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
+			END)
+		ELSE
+			COUNT(CASE 
+				WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND 
+					 (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND 
+					 TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
+			END)
+	END AS S_at_5th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
+	END AS A_at_10th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
+	END AS B_at_20th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
+	END AS C_at_31st_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
+	END AS F_after_1_month_of_last_contract
+	-- 
 FROM tblcontract c
 LEFT JOIN tblprospect p ON (p.id = c.prospect_id)
 LEFT JOIN tblcustomer cu ON (p.customer_id = cu.id)
 LEFT JOIN tblpaymentschedule ps1 ON ps1.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id AND status = 1 
-    ORDER BY payment_date DESC LIMIT 1
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id AND status = 1 
+	ORDER BY payment_date DESC LIMIT 1
 )
 LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id 
-    ORDER BY payment_date DESC LIMIT 1
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id 
+	ORDER BY payment_date DESC LIMIT 1
 )
 LEFT JOIN sme_lock_down sld ON sld.id = (
-    SELECT id FROM sme_lock_down 
-    WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
-    ORDER BY new_lastpayment_date DESC, start_date DESC LIMIT 1
+	SELECT id FROM sme_lock_down 
+	WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
+	ORDER BY start_date DESC LIMIT 1
 )
 LEFT JOIN (
-    SELECT 
-        pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.type, pm.amount,
-        pm.status AS pm_status, co.status AS co_status, ps.status AS ps_status,
-        ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-    FROM tblpayment pm
-    LEFT JOIN tblcollection co ON pm.collection_id = co.id
-    INNER JOIN tblpaymentschedule ps ON (ps.id = pm.schedule_id AND ps.status = 1)
+	SELECT 
+		pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.type, pm.amount,
+		pm.status AS pm_status, co.status AS co_status, ps.status AS ps_status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
+	FROM tblpayment pm
+	LEFT JOIN tblcollection co ON pm.collection_id = co.id
+	INNER JOIN tblpaymentschedule ps ON (ps.id = pm.schedule_id AND ps.status = 1)
 ) t ON (c.id = t.contract_id)
 	-- 
 WHERE t.rn = 1
@@ -481,161 +742,167 @@ GROUP BY c.contract_no;
 
 
 
+
+
+
+
+
+
 -- For Morikawa
 SELECT 
-    -- Contract details
-    c.contract_no,
-    CASE p.contract_type 
-        WHEN 1 THEN 'SME Car'
-        WHEN 2 THEN 'SME Bike'
-        WHEN 3 THEN 'Car Leasing'
-        WHEN 4 THEN 'Bike Leasing'
-        WHEN 5 THEN 'Real Estate'
-        WHEN 6 THEN 'Trade Finance'
-        ELSE NULL
-    END AS contract_type,
-    -- 
-    -- Customer name (combined in English and Lao, properly encoded)
-    CONVERT(CAST(CONVERT(
-        CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
-               cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
-        USING latin1) AS binary) USING utf8) AS customer_name,
-    cu.main_contact_no,
-    -- 
-    -- Payment schedule type
-    CASE p.payment_schedule_type 
-        WHEN '1' THEN 'Normal'
-        WHEN '2' THEN 'Bullet'
-        WHEN '3' THEN 'Bullet-MOU'
-        ELSE ''
-    END AS payment_schedule_type,
-    -- 
-    -- Loan and financial details
-    p.loan_amount,
-    p.trading_currency,
-    NULL AS due_for_next_installment,
-    NULL AS total_principal_outstanding,
-    NULL AS total_principal_outstanding_usd,
-    NULL AS sale_person,
-    -- 
-    -- Contract status
-    CASE c.status 
-        WHEN 0 THEN 'Pending'
-        WHEN 1 THEN 'Pending Approval'
-        WHEN 2 THEN 'Pending Disbursement'
-        WHEN 3 THEN 'Disbursement Approval'
-        WHEN 4 THEN 'Active'
-        WHEN 5 THEN 'Cancelled'
-        WHEN 6 THEN 'Refinance'
-        WHEN 7 THEN 'Closed'
-        ELSE NULL
-    END AS contract_status,
-    -- 
-    -- Payment dates
-    p.first_payment_date,
-    sld.start_date AS first_payment_date_of_last_3months,
-    p.last_payment_date,
-    ps2.principal_amount AS last_installment_principal,
-    -- 
-    -- Payment structure type
-    p.no_of_payment,
-    CASE 
-        WHEN p.payment_schedule_type = 1 THEN 'Normal'
-        WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
-        ELSE 'DDT+Installment'
-    END AS ddt_installment,
-    -- 
-    -- Metrics for paid times and collection statuses
-    CASE 
-        WHEN sld.start_date IS NULL THEN COUNT(*)
-        WHEN ps1.payment_date >= t.due_date THEN COUNT(CASE WHEN t.due_date >= sld.start_date THEN 1 END)
-    END AS paid_times_of_last_contract,
-    -- 
-    -- Collection statuses at various milestones
-    CASE 
-        WHEN sld.start_date IS NULL THEN 
-            COUNT(CASE 
-                WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-            END)
-        ELSE
-            COUNT(CASE 
-                WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND 
-                     (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND 
-                     TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-            END)
-    END AS S_at_5th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-    END AS A_at_10th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                            TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-    END AS B_at_20th_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-    END AS C_at_31st_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) <= 1 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) <= 1 THEN 1 END)
-    END AS F_after_1_month_of_last_contract,
-    -- 
-    CASE 
-        WHEN sld.start_date IS NULL THEN
-            COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 2 THEN 1 END)
-        ELSE
-            COUNT(CASE WHEN t.due_date >= sld.start_date AND 
-                            TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 2 THEN 1 END)
-    END AS F_after_1_month_of_last_contract
-    -- 
+	-- Contract details
+	c.contract_no,
+	CASE p.contract_type 
+		WHEN 1 THEN 'SME Car'
+		WHEN 2 THEN 'SME Bike'
+		WHEN 3 THEN 'Car Leasing'
+		WHEN 4 THEN 'Bike Leasing'
+		WHEN 5 THEN 'Real Estate'
+		WHEN 6 THEN 'Trade Finance'
+		ELSE NULL
+	END AS contract_type,
+	-- 
+	-- Customer name (combined in English and Lao, properly encoded)
+	CONVERT(CAST(CONVERT(
+		CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
+			   cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
+		USING latin1) AS binary) USING utf8) AS customer_name,
+	cu.main_contact_no,
+	-- 
+	-- Payment schedule type
+	CASE p.payment_schedule_type 
+		WHEN '1' THEN 'Normal'
+		WHEN '2' THEN 'Bullet'
+		WHEN '3' THEN 'Bullet-MOU'
+		ELSE ''
+	END AS payment_schedule_type,
+	-- 
+	-- Loan and financial details
+	p.loan_amount,
+	p.trading_currency,
+	NULL AS due_for_next_installment,
+	NULL AS total_principal_outstanding,
+	NULL AS total_principal_outstanding_usd,
+	NULL AS sale_person,
+	-- 
+	-- Contract status
+	CASE c.status 
+		WHEN 0 THEN 'Pending'
+		WHEN 1 THEN 'Pending Approval'
+		WHEN 2 THEN 'Pending Disbursement'
+		WHEN 3 THEN 'Disbursement Approval'
+		WHEN 4 THEN 'Active'
+		WHEN 5 THEN 'Cancelled'
+		WHEN 6 THEN 'Refinance'
+		WHEN 7 THEN 'Closed'
+		ELSE NULL
+	END AS contract_status,
+	-- 
+	-- Payment dates
+	p.first_payment_date,
+	sld.start_date AS first_payment_date_of_last_3months,
+	p.last_payment_date,
+	ps2.principal_amount AS last_installment_principal,
+	-- 
+	-- Payment structure type
+	p.no_of_payment,
+	CASE 
+		WHEN p.payment_schedule_type = 1 THEN 'Normal'
+		WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
+		ELSE 'DDT+Installment'
+	END AS ddt_installment,
+	-- 
+	-- Metrics for paid times and collection statuses
+	CASE 
+		WHEN sld.start_date IS NULL THEN COUNT(*)
+		WHEN ps1.payment_date >= t.due_date THEN COUNT(CASE WHEN t.due_date >= sld.start_date THEN 1 END)
+	END AS paid_times_of_last_contract,
+	-- 
+	-- Collection statuses at various milestones
+	CASE 
+		WHEN sld.start_date IS NULL THEN 
+			COUNT(CASE 
+				WHEN ps1.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
+			END)
+		ELSE
+			COUNT(CASE 
+				WHEN ps1.payment_date >= t.due_date AND t.due_date >= sld.start_date AND 
+					 (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
+				WHEN ps1.payment_date < t.due_date AND t.due_date >= sld.start_date AND 
+					 TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
+			END)
+	END AS S_at_5th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
+	END AS A_at_10th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
+							TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
+	END AS B_at_20th_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
+	END AS C_at_31st_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) <= 1 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) <= 1 THEN 1 END)
+	END AS F_after_1_month_of_last_contract,
+	-- 
+	CASE 
+		WHEN sld.start_date IS NULL THEN
+			COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 2 THEN 1 END)
+		ELSE
+			COUNT(CASE WHEN t.due_date >= sld.start_date AND 
+							TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 2 THEN 1 END)
+	END AS F_after_1_month_of_last_contract
+	-- 
 FROM tblcontract c
 LEFT JOIN tblprospect p ON (p.id = c.prospect_id)
 LEFT JOIN tblcustomer cu ON (p.customer_id = cu.id)
 LEFT JOIN tblpaymentschedule ps1 ON ps1.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id AND status = 1 
-    ORDER BY payment_date DESC LIMIT 1
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id AND status = 1 
+	ORDER BY payment_date DESC LIMIT 1
 )
 LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id 
-    ORDER BY payment_date DESC LIMIT 1
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id 
+	ORDER BY payment_date DESC LIMIT 1
 )
 LEFT JOIN sme_lock_down sld ON sld.id = (
-    SELECT id FROM sme_lock_down 
-    WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
-    ORDER BY id DESC LIMIT 1
+	SELECT id FROM sme_lock_down 
+	WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
+	ORDER BY id DESC LIMIT 1
 )
 LEFT JOIN (
-    SELECT 
-        pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.type, pm.amount,
-        pm.status AS pm_status, co.status AS co_status, ps.status AS ps_status,
-        ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-    FROM tblpayment pm
-    LEFT JOIN tblcollection co ON pm.collection_id = co.id
-    INNER JOIN tblpaymentschedule ps ON (ps.id = pm.schedule_id AND ps.status = 1)
+	SELECT 
+		pm.id, pm.schedule_id, pm.contract_id, pm.due_date, co.date_collected, pm.type, pm.amount,
+		pm.status AS pm_status, co.status AS co_status, ps.status AS ps_status,
+		ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
+	FROM tblpayment pm
+	LEFT JOIN tblcollection co ON pm.collection_id = co.id
+	INNER JOIN tblpaymentschedule ps ON (ps.id = pm.schedule_id AND ps.status = 1)
 ) t ON (c.id = t.contract_id)
 	-- 
 WHERE t.rn = 1
@@ -643,291 +910,71 @@ WHERE t.rn = 1
 GROUP BY c.contract_no;
 
 
+-- ____________________________________________ update ____________________________________________
 
--- Chat GPT
-WITH latest_ps1 AS (
-    SELECT *
-    FROM (
-        SELECT ps.*, 
-               ROW_NUMBER() OVER (PARTITION BY ps.prospect_id ORDER BY ps.payment_date DESC) AS rn
-        FROM tblpaymentschedule ps
-        WHERE ps.status = 1
-    ) sub
-    WHERE rn = 1
-),
-latest_ps2 AS (
-    SELECT *
-    FROM (
-        SELECT ps.*, 
-               ROW_NUMBER() OVER (PARTITION BY ps.prospect_id ORDER BY ps.payment_date DESC) AS rn
-        FROM tblpaymentschedule ps
-    ) sub
-    WHERE rn = 1
-),
-latest_sld AS (
-    SELECT *
-    FROM (
-        SELECT sld.*, 
-               ROW_NUMBER() OVER (PARTITION BY sld.contract_no ORDER BY sld.new_lastpayment_date DESC, sld.start_date DESC) AS rn
-        FROM sme_lock_down sld
-        WHERE sld.status IN ('ຜ່ານ', 'Accounting Approval')
-    ) sub
-    WHERE rn = 1
-),
-payment_data AS (
-    SELECT * FROM (
-        SELECT 
-            pm.contract_id,
-            pm.due_date, 
-            co.date_collected,
-            COUNT(*) OVER (PARTITION BY pm.contract_id) AS paid_times_of_last_contract,
-            SUM(CASE 
-                WHEN TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) <= 0 THEN 1 
-                ELSE 0 
-            END) OVER (PARTITION BY pm.contract_id) AS S_at_5th_of_last_contract,
-            SUM(CASE 
-                WHEN TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) > 0 
-                     AND TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) <= 5 THEN 1 
-                ELSE 0 
-            END) OVER (PARTITION BY pm.contract_id) AS A_at_10th_of_last_contract,
-            SUM(CASE 
-                WHEN TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) > 5 
-                     AND TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) <= 20 THEN 1 
-                ELSE 0 
-            END) OVER (PARTITION BY pm.contract_id) AS B_at_20th_of_last_contract,
-            SUM(CASE 
-                WHEN TIMESTAMPDIFF(DAY, pm.due_date, co.date_collected) > 20 
-                     AND TIMESTAMPDIFF(MONTH, pm.due_date, co.date_collected) = 0 THEN 1 
-                ELSE 0 
-            END) OVER (PARTITION BY pm.contract_id) AS C_at_31st_of_last_contract,
-            SUM(CASE 
-                WHEN TIMESTAMPDIFF(MONTH, pm.due_date, co.date_collected) >= 1 THEN 1 
-                ELSE 0 
-            END) OVER (PARTITION BY pm.contract_id) AS F_after_1_month_of_last_contract,
-            ROW_NUMBER() OVER (PARTITION BY pm.contract_id, pm.due_date ORDER BY co.date_collected DESC) AS rn
-        FROM tblpayment pm
-        LEFT JOIN tblcollection co ON pm.collection_id = co.id
-        INNER JOIN tblpaymentschedule ps ON pm.schedule_id = ps.id AND ps.status = 1
-    ) sub
-    WHERE rn = 1
-)
+-- Export the result 
 SELECT 
-    c.contract_no,
-    CASE p.contract_type 
-        WHEN 1 THEN 'SME Car'
-        WHEN 2 THEN 'SME Bike'
-        WHEN 3 THEN 'Car Leasing'
-        WHEN 4 THEN 'Bike Leasing'
-        WHEN 5 THEN 'Real Estate'
-        WHEN 6 THEN 'Trade Finance'
-        ELSE NULL
-    END AS contract_type,
-    CONVERT(CAST(CONVERT(
-        CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
-               cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
-        USING latin1) AS binary) USING utf8) AS customer_name,
-    cu.main_contact_no,
-    CASE p.payment_schedule_type 
-        WHEN '1' THEN 'Normal'
-        WHEN '2' THEN 'Bullet'
-        WHEN '3' THEN 'Bullet-MOU'
-        ELSE ''
-    END AS payment_schedule_type,
-    p.loan_amount,
-    p.trading_currency,
-    p.monthly_interest,
-    sld.monthly_interest_2nd,
-    NULL AS due_for_next_installment,
-    NULL AS total_principal_outstanding,
-    NULL AS total_principal_outstanding_usd,
-    NULL AS sale_person,
-    CASE c.status 
-        WHEN 0 THEN 'Pending'
-        WHEN 1 THEN 'Pending Approval'
-        WHEN 2 THEN 'Pending Disbursement'
-        WHEN 3 THEN 'Disbursement Approval'
-        WHEN 4 THEN 'Active'
-        WHEN 5 THEN 'Cancelled'
-        WHEN 6 THEN 'Refinance'
-        WHEN 7 THEN 'Closed'
-        ELSE NULL
-    END AS contract_status,
-    p.first_payment_date,
-    sld.start_date AS first_payment_date_of_last_3months,
-    p.last_payment_date,
-    ps2.principal_amount AS last_installment_principal,
-    p.no_of_payment,
-    CASE 
-        WHEN p.payment_schedule_type = 1 THEN 'Normal'
-        WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
-        ELSE 'DDT+Installment'
-    END AS ddt_installment,
-    pd.paid_times_of_last_contract,
-    pd.S_at_5th_of_last_contract,
-    pd.A_at_10th_of_last_contract,
-    pd.B_at_20th_of_last_contract,
-    pd.C_at_31st_of_last_contract,
-    pd.F_after_1_month_of_last_contract
+	c.contract_no,
+	CASE c.status 
+		WHEN 0 THEN 'Pending'
+		WHEN 1 THEN 'Pending Approval'
+		WHEN 2 THEN 'Pending Disbursement'
+		WHEN 3 THEN 'Disbursement Approval'
+		WHEN 4 THEN 'Active'
+		WHEN 5 THEN 'Cancelled'
+		WHEN 6 THEN 'Refinance'
+		WHEN 7 THEN 'Closed'
+		ELSE NULL
+	END AS `contract_status`,
+	CASE 
+		WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
+		WHEN p.loan_amount <> ps2.principal_amount THEN 'Normal'
+		WHEN p.payment_schedule_type = 1 THEN 'Normal'
+		ELSE 'DDT+Installment'
+	END AS `ddt_installment`,
+	usc.monthly_interest_2nd,
+	p.trading_currency AS `currency`
 FROM tblcontract c
-LEFT JOIN tblprospect p ON p.id = c.prospect_id
-LEFT JOIN tblcustomer cu ON p.customer_id = cu.id
-LEFT JOIN latest_ps1 ps1 ON ps1.prospect_id = c.prospect_id
-LEFT JOIN latest_ps2 ps2 ON ps2.prospect_id = c.prospect_id
-LEFT JOIN latest_sld sld ON sld.contract_no = c.contract_no
-LEFT JOIN payment_data pd ON c.id = pd.contract_id
-WHERE c.status IN (4, 6, 7);
-
-
-
-
-
-
-
--- Qwn2.5
-SELECT 
-    c.contract_no,
-    CASE p.contract_type 
-        WHEN 1 THEN 'SME Car'
-        WHEN 2 THEN 'SME Bike'
-        WHEN 3 THEN 'Car Leasing'
-        WHEN 4 THEN 'Bike Leasing'
-        WHEN 5 THEN 'Real Estate'
-        WHEN 6 THEN 'Trade Finance'
-        ELSE NULL
-    END AS contract_type,
-    CONVERT(CAST(CONVERT(
-        CONCAT(cu.customer_first_name_en, ' ', cu.customer_last_name_en, '-', 
-               cu.customer_first_name_lo, ' ', cu.customer_last_name_lo) 
-        USING latin1) AS binary) USING utf8) AS customer_name,
-    cu.main_contact_no,
-    CASE p.payment_schedule_type 
-        WHEN '1' THEN 'Normal'
-        WHEN '2' THEN 'Bullet'
-        WHEN '3' THEN 'Bullet-MOU'
-        ELSE ''
-    END AS payment_schedule_type,
-    p.loan_amount,
-    p.trading_currency,
-    p.monthly_interest,
-    sld.monthly_interest_2nd,
-    NULL AS due_for_next_installment,
-    NULL AS total_principal_outstanding,
-    NULL AS total_principal_outstanding_usd,
-    NULL AS sale_person,
-    CASE c.status 
-        WHEN 0 THEN 'Pending'
-        WHEN 1 THEN 'Pending Approval'
-        WHEN 2 THEN 'Pending Disbursement'
-        WHEN 3 THEN 'Disbursement Approval'
-        WHEN 4 THEN 'Active'
-        WHEN 5 THEN 'Cancelled'
-        WHEN 6 THEN 'Refinance'
-        WHEN 7 THEN 'Closed'
-        ELSE NULL
-    END AS contract_status,
-    p.first_payment_date,
-    sld.start_date AS first_payment_date_of_last_3months,
-    p.last_payment_date,
-    ps2.principal_amount AS last_installment_principal,
-    p.no_of_payment,
-    CASE 
-        WHEN p.payment_schedule_type = 1 THEN 'Normal'
-        WHEN p.loan_amount = ps2.principal_amount THEN 'DDT'
-        ELSE 'DDT+Installment'
-    END AS ddt_installment,
-    agg.paid_times_of_last_contract,
-    agg.S_at_5th_of_last_contract,
-    agg.A_at_10th_of_last_contract,
-    agg.B_at_20th_of_last_contract,
-    agg.C_at_31st_of_last_contract,
-    agg.F_after_1_month_of_last_contract
-FROM tblcontract c
-LEFT JOIN tblprospect p ON p.id = c.prospect_id
-LEFT JOIN tblcustomer cu ON p.customer_id = cu.id
-LEFT JOIN tblpaymentschedule ps1 ON ps1.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id AND status = 1 
-    ORDER BY payment_date DESC LIMIT 1
+LEFT JOIN tblprospect p ON (p.id = c.prospect_id)
+LEFT JOIN update_schedule usc ON usc.id = (
+	SELECT id FROM update_schedule
+	WHERE prospect_id = c.prospect_id AND status IN (4)
+	ORDER BY date_updated DESC LIMIT 0, 1
 )
 LEFT JOIN tblpaymentschedule ps2 ON ps2.id = (
-    SELECT id FROM tblpaymentschedule 
-    WHERE prospect_id = c.prospect_id 
-    ORDER BY payment_date DESC LIMIT 1
+	SELECT id FROM tblpaymentschedule 
+	WHERE prospect_id = c.prospect_id 
+	ORDER BY payment_date DESC LIMIT 0, 1
 )
-LEFT JOIN sme_lock_down sld ON sld.id = (
-    SELECT id FROM sme_lock_down 
-    WHERE contract_no = c.contract_no AND status IN ('ຜ່ານ', 'Accounting Approval')
-    ORDER BY new_lastpayment_date DESC, start_date DESC LIMIT 1
-)
-LEFT JOIN (
-    SELECT 
-        contract_id,
-        MAX(paid_times_of_last_contract) AS paid_times_of_last_contract,
-        MAX(S_at_5th_of_last_contract) AS S_at_5th_of_last_contract,
-        MAX(A_at_10th_of_last_contract) AS A_at_10th_of_last_contract,
-        MAX(B_at_20th_of_last_contract) AS B_at_20th_of_last_contract,
-        MAX(C_at_31st_of_last_contract) AS C_at_31st_of_last_contract,
-        MAX(F_after_1_month_of_last_contract) AS F_after_1_month_of_last_contract
-    FROM (
-        SELECT 
-            pm.contract_id,
-            CASE 
-                WHEN sld.start_date IS NULL THEN COUNT(*)
-                WHEN pm.payment_date >= t.due_date THEN COUNT(CASE WHEN t.due_date >= sld.start_date THEN 1 END)
-            END AS paid_times_of_last_contract,
-            CASE 
-                WHEN sld.start_date IS NULL THEN 
-                    COUNT(CASE 
-                        WHEN pm.payment_date >= t.due_date AND (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                        WHEN pm.payment_date < t.due_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-                    END)
-                ELSE
-                    COUNT(CASE 
-                        WHEN pm.payment_date >= t.due_date AND t.due_date >= sld.start_date AND 
-                             (t.date_collected IS NULL OR TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0) THEN 1
-                        WHEN pm.payment_date < t.due_date AND t.due_date >= sld.start_date AND 
-                             TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 0 THEN 1
-                    END)
-            END AS S_at_5th_of_last_contract,
-            CASE 
-                WHEN sld.start_date IS NULL THEN
-                    COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                                    TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-                ELSE
-                    COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 0 AND 
-                                    TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 5 THEN 1 END)
-            END AS A_at_10th_of_last_contract,
-            CASE 
-                WHEN sld.start_date IS NULL THEN
-                    COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                                    TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-                ELSE
-                    COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 5 AND 
-                                    TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) <= 20 THEN 1 END)
-            END AS B_at_20th_of_last_contract,
-            CASE 
-                WHEN sld.start_date IS NULL THEN
-                    COUNT(CASE WHEN TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                                    TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-                ELSE
-                    COUNT(CASE WHEN t.due_date >= sld.start_date AND TIMESTAMPDIFF(DAY, t.due_date, t.date_collected) > 20 AND 
-                                    TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) = 0 THEN 1 END)
-            END AS C_at_31st_of_last_contract,
-            CASE 
-                WHEN sld.start_date IS NULL THEN
-                    COUNT(CASE WHEN TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
-                ELSE
-                    COUNT(CASE WHEN t.due_date >= sld.start_date AND 
-                                    TIMESTAMPDIFF(MONTH, t.due_date, t.date_collected) >= 1 THEN 1 END)
-            END AS F_after_1_month_of_last_contract
-        FROM tblpayment pm
-        LEFT JOIN tblcollection co ON pm.collection_id = co.id
-        INNER JOIN tblpaymentschedule ps ON (ps.id = pm.schedule_id AND ps.status = 1)
-        WHERE pm.contract_id = c.id
-    ) sub
-    GROUP BY contract_id
-) agg ON agg.contract_id = c.id
-WHERE c.status IN (4, 6, 7);
+WHERE c.status IN (4, 6, 7)
+	AND c.contract_no IN ()
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -38,11 +38,13 @@ create table `bpay_contract` (
 ) engine=InnoDB auto_increment=1 default CHARSET=utf8mb4;
 
 
--- Delete old before add new from server 172.16.11.30 
-delete from bpay_contract where date_report = date_format(now(), '%Y-%m-01');
+-- Check old before add new from server 172.16.11.30 
+select * from bpay_contract where date_report = date_format(now(), '%Y-%m-01');
+
 
 
 -- 1) BCEL One import from LALCO server 18.140.117.112 to server 172.16.11.30 
+-- from lalco to bpay_contract
  SELECT
  	date_format(now(), '%Y-%m-01') `date_report`,
     case when FROM_UNIXTIME(c.disbursed_datetime, '%Y-%m-%d') >= '2023-01-01' and length(c.ncn) != 7 then c.contract_no else c.ncn end `agreement_no`,	
@@ -62,59 +64,59 @@ delete from bpay_contract where date_report = date_format(now(), '%Y-%m-01');
 	END `status`,
 	'' `phone_no`,
 	CASE p.contract_type WHEN 1 THEN 'SME Car' WHEN 2 THEN 'SME Bike' WHEN 3 THEN 'Car Leasing' WHEN 4 THEN 'Bike Leasing' when 5 then 'Real estate' ELSE NULL END `detail1`, -- Contract_type
-	case p.call_centre 
-		when 1 then '100 - Head Office'
-		when 2 then '200 - Savannakhet'
-		when 3 then '300 - Pakse - Champasack'
-		when 4 then '400 - Luangprabang'
-		when 5 then '500 - Oudomxay'
-		when 6 then '110 - Vientiane province'
-		when 7 then '210 - Xeno - Savanakhet'
-		when 8 then '310 - Soukumma - Champasack'
-		when 9 then '600 - Xainyabuli'
-		when 10 then '700 - Houaphan'
-		when 11 then '900 - Xiengkhouang'
-		when 12 then '800 - Paksan - Bolikhamxay'
-		when 13 then '220 - Paksong - Savanakhet'
-		when 14 then '230 - Thakek - Khammuane'
-		when 15 then '320 - Salavan'
-		when 16 then '330 - Attapeu'
-		when 17 then '910 - Kham - Xiengkhuang'
-		when 18 then '240 - Phin - Savanakhet'
-		when 21 then '999 - Other'
-		when 22 then '1000 - Luangnamtha'
-		when 24 then '120 - Dongdok - Vientiane Capital'
-		when 26 then '111 - Vangvieng - Vientiane province'
-		when 27 then '1300 - Bokeo'
-		when 28 then '1100 - Phongsaly'
-		when 29 then '1200 - Sekong'
-		when 30 then '1400 - Xaysomboun'
-		when 31 then '1500 - Hadxayfong - Vientiane Capital'
-		when 32 then '1600 - Naxaythong - Vientiane Capital'
-		when 33 then '1700 - Parkngum - Vientiane Capital'
-		when 34 then '1800 - Xaythany - Vientiane Capital'
-		when 35 then '1900 - Saysetha - Attapeu'
-		when 36 then '2000 - Khamkeut - Borikhamxay'
-		when 37 then '2100 - Paksong - Champasack'
-		when 38 then '2200 - Chongmeg - Champasack'
-		when 39 then '2300 - Nam Bak - Luangprabang'
-		when 40 then '2400 - Songkhone - Savanakhet'
-		when 41 then '2500 - Parklai - Xayaboury'
-		when 42 then '2600 - Sikhottabong - Vientiane Capital '
-		when 43 then '2700 - Xanakharm(VTP) - Vientiane Province'
-		when 44 then '2800 - Feuang(VTP) - Vientiane Province'
-		when 45 then '2900 - Thoulakhom(VTP) - Vientiane Province'
-		when 46 then '3000 - Khoune(XKH) - Xienkhuang'
-		when 47 then '3100 - Pakkading(PKN) - Borikhamxay'
-		when 48 then '3200 - Khong(PKS) - Champasack'
-		when 50 then '3300 - Khongxedone(SLV) - Saravane'
-		when 51 then '3400 - Atsaphangthong(SVK) - Savanakhet'
-		when 52 then '3500 - Nhommalth(TKK) - Khammuane'
-		when 53 then '3600 - Nane(LPB) - Luangprabang'
-		when 54 then '3700 - Hoon(ODX) - Oudomxay'
-		when 55 then '3800 - Hongsa(XYB) - Xayaboury'
-		when 56 then '3900 - Tonpherng(BKO) - Bokeo'
-	end `detail2`, -- Branch 
+	CASE p.call_centre 
+		WHEN 1 THEN '100 - Head Office'
+		WHEN 2 THEN '200 - Savannakhet'
+		WHEN 3 THEN '300 - Pakse - Champasack'
+		WHEN 4 THEN '400 - Luangprabang'
+		WHEN 5 THEN '500 - Oudomxay'
+		WHEN 6 THEN '110 - Vientiane province'
+		WHEN 7 THEN '210 - Xeno - Savanakhet'
+		WHEN 8 THEN '310 - Sukhuma(PKS) - Champasack'
+		WHEN 9 THEN '600 - Xainyabuli'
+		WHEN 10 THEN '700 - Houaphan'
+		WHEN 11 THEN '900 - Xiengkhouang'
+		WHEN 12 THEN '800 - Paksan - Bolikhamxay'
+		WHEN 13 THEN '220 - Paksong - Savanakhet'
+		WHEN 14 THEN '230 - Thakek - Khammuane'
+		WHEN 15 THEN '320 - Salavan'
+		WHEN 16 THEN '330 - Attapeu'
+		WHEN 17 THEN '910 - Kham - Xiengkhuang'
+		WHEN 18 THEN '240 - Phin - Savanakhet'
+		WHEN 21 THEN '999 - Other'
+		WHEN 22 THEN '1000 - Luangnamtha'
+		WHEN 24 THEN '120 - Dongdok - Vientiane Capital'
+		WHEN 26 THEN '111 - Vangvieng - Vientiane province'
+		WHEN 27 THEN '1300 - Bokeo'
+		WHEN 28 THEN '1100 - Phongsaly'
+		WHEN 29 THEN '1200 - Sekong'
+		WHEN 30 THEN '1400 - Xaysomboun'
+		WHEN 31 THEN '1500 - Hadxayfong - Vientiane Capital'
+		WHEN 32 THEN '1600 - Naxaythong - Vientiane Capital'
+		WHEN 33 THEN '1700 - Parkngum - Vientiane Capital'
+		WHEN 34 THEN '1800 - Xaythany - Vientiane Capital'
+		WHEN 35 THEN '1900 - Saysetha - Attapeu'
+		WHEN 36 THEN '2000 - Khamkeut - Borikhamxay'
+		WHEN 37 THEN '2100 - Paksong - Champasack'
+		WHEN 38 THEN '2200 - Chongmeg - Champasack'
+		WHEN 39 THEN '2300 - Nam Bak - Luangprabang'
+		WHEN 40 THEN '2400 - Songkhone - Savanakhet'
+		WHEN 41 THEN '2500 - Parklai - Xayaboury'
+		WHEN 42 THEN '2600 - Sikhottabong - Vientiane Capital'
+		WHEN 43 THEN '2700 - Xanakharm(VTP) - Vientiane Province'
+		WHEN 44 THEN '2800 - Feuang(VTP) - Vientiane Province'
+		WHEN 45 THEN '2900 - Thoulakhom(VTP) - Vientiane Province'
+		WHEN 46 THEN '3000 - Khoune(XKH) - Xienkhuang'
+		WHEN 47 THEN '3100 - Pakkading(PKN) - Borikhamxay'
+		WHEN 48 THEN '3200 - Khong(PKS) - Champasack'
+		WHEN 50 THEN '3300 - Khongxedone(SLV) - Saravane'
+		WHEN 51 THEN '3400 - Atsaphangthong(SVK) - Savanakhet'
+		WHEN 52 THEN '3500 - Nhommalth(TKK) - Khammuane'
+		WHEN 53 THEN '3600 - Nane(LPB) - Luangprabang'
+		WHEN 54 THEN '3700 - Hoon(ODX) - Oudomxay'
+		WHEN 55 THEN '3800 - Hongsa(XYB) - Xayaboury'
+		WHEN 56 THEN '3900 - Tonpherng(BKO) - Bokeo'
+	END `detail2`, -- Branch 
 	p.id `contract_no`,
 	case when left (right (REPLACE ( cu.main_contact_no, ' ', '') ,8),1) = '0' then CONCAT('03',right (REPLACE ( cu.main_contact_no, ' ', '') ,8))
 	    when length (REPLACE ( cu.main_contact_no, ' ', '')) = 7 then CONCAT('030',REPLACE ( cu.main_contact_no, ' ', ''))
@@ -126,14 +128,25 @@ delete from bpay_contract where date_report = date_format(now(), '%Y-%m-01');
 from tblprospect p
 left join tblcustomer cu on (p.customer_id = cu.id)
 left join tblcontract c on (p.id = c.prospect_id)
-where ( (c.status = 4 or c.status = 6 or c.status = 7) 
-	and( (FROM_UNIXTIME(c.disbursed_datetime, '%Y-%m-%d') between DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH) and LAST_DAY(DATE_ADD(CURDATE(), INTERVAL 0 MONTH)) ) 
+where  ((c.status = 4 or c.status = 6 or c.status = 7) 
+	and( (FROM_UNIXTIME(c.disbursed_datetime, '%Y-%m-%d') between DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 2 MONTH) and LAST_DAY(DATE_ADD(CURDATE(), INTERVAL 0 MONTH)) ) 
 		or ((c.status = 6 or c.status = 7) and c.date_closed between DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 12 MONTH) and LAST_DAY(DATE_ADD(CURDATE(), INTERVAL 0 MONTH)) )
 		) 
 	)
- -- or c.contract_no in () -- missed contract_no last time
+-- c.contract_no in (2123145) -- missed contract_no last time
 order by c.contract_no ;
 
+
+
+
+-- delete duplicate if has same report date on server 172.16.11.30
+delete from bpay_contract where id in (
+select id from ( 
+		select id, row_number() over (partition by date_report, contract_no, status order by id asc) as row_numbers  
+		from bpay_contract
+	) as t1
+where row_numbers > 1 
+);
 
 
 
@@ -197,9 +210,13 @@ select null as `No`,
 	detail1 as `Detail1`,
 	detail2 as `Detail2`
 from bpay_contract 
--- where date_report = date_format(now(), '%Y-%m-01') ;
-WHERE contract_no IN (2112838, 2113392, 2113758, 2113941, 2113953, 2114487, 2112838, 2113392, 2113926, 2113953, 2114060, 2114108, 2114487, 2114807, 2115017, 2115339, 2115419, 2115423, 2113926, 2114108, 2114498, 2114807, 2115017, 2115339, 2115419, 2115423, 2115577, 2114498)
+ WHERE date_report = date_format(now(), '%Y-%m-01') 
+-- WHERE datetime_sync >= CURDATE()
+-- AND contract_no IN (2123145)
 ; -- 28 contracts 
+
+
+
 
 
 
@@ -209,7 +226,7 @@ WHERE contract_no IN (2112838, 2113392, 2113758, 2113941, 2113953, 2114487, 2112
 
 SELECT *
 from bpay_contract 
-where contract_no IN (2113926, 2114498)
+where contract_no IN (2111205)
 
 
 SELECT * -- GROUP_CONCAT(contract_no SEPARATOR ', ') 
